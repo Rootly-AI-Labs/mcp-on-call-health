@@ -4,6 +4,7 @@ Retry configuration for OnCallHealth REST API client.
 Uses tenacity for automatic retry with exponential backoff and jitter
 to handle transient failures while preventing thundering herd.
 """
+
 import logging
 from typing import Callable, Tuple, Type
 

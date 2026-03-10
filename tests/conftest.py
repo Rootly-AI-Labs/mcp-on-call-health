@@ -1,11 +1,13 @@
 """Pytest fixtures for MCP server tests."""
+
 import pytest
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 @pytest.fixture
 def mock_context():
     """Mock context object with API key."""
+
     class MockContext:
         def __init__(self, api_key: str = "test-api-key"):
             self.api_key = api_key
@@ -17,6 +19,7 @@ def mock_context():
 @pytest.fixture
 def mock_context_no_key():
     """Mock context object without API key."""
+
     class MockContext:
         def __init__(self):
             self.api_key = None
@@ -44,7 +47,7 @@ def sample_analysis_response() -> Dict[str, Any]:
                         "rootly_user_id": 2381,
                         "pagerduty_user_id": "P123ABC",
                         "slack_user_id": "U012345",
-                        "github_username": "quentinr"
+                        "github_username": "quentinr",
                     },
                     {
                         "user_id": "002",
@@ -54,7 +57,7 @@ def sample_analysis_response() -> Dict[str, Any]:
                         "risk_level": "low",
                         "incident_count": 15,
                         "rootly_user_id": 94178,
-                        "slack_user_id": "U789XYZ"
+                        "slack_user_id": "U789XYZ",
                     },
                     {
                         "user_id": "003",
@@ -64,7 +67,7 @@ def sample_analysis_response() -> Dict[str, Any]:
                         "risk_level": "medium",
                         "incident_count": 30,
                         "rootly_user_id": 1234,
-                        "pagerduty_user_id": "P456DEF"
+                        "pagerduty_user_id": "P456DEF",
                     },
                     {
                         "user_id": "004",
@@ -73,7 +76,7 @@ def sample_analysis_response() -> Dict[str, Any]:
                         "och_score": 25.0,
                         "risk_level": "low",
                         "incident_count": 20,
-                        "rootly_user_id": 5678
+                        "rootly_user_id": 5678,
                     },
                     {
                         "user_id": "005",
@@ -82,11 +85,11 @@ def sample_analysis_response() -> Dict[str, Any]:
                         "och_score": 68.0,
                         "risk_level": "HIGH",  # Test case-insensitivity
                         "incident_count": 40,
-                        "rootly_user_id": 9101
-                    }
+                        "rootly_user_id": 9101,
+                    },
                 ]
             }
-        }
+        },
     }
 
 
@@ -106,12 +109,7 @@ def sample_analysis_summary_response() -> Dict[str, Any]:
             },
             "team_health": {
                 "overall_score": 50.0,
-                "risk_distribution": {
-                    "low": 1,
-                    "medium": 0,
-                    "high": 1,
-                    "critical": 0
-                }
-            }
-        }
+                "risk_distribution": {"low": 1, "medium": 0, "high": 1, "critical": 0},
+            },
+        },
     }

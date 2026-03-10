@@ -6,17 +6,16 @@ This middleware protects the MCP endpoint from resource exhaustion by:
 
 Applied to mcp_http_app before CORS middleware.
 """
+
 from __future__ import annotations
 
 import hashlib
 import logging
 import uuid
-from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.types import ASGIApp
 
 from .connection_tracker import (
     connection_tracker,
@@ -62,9 +61,7 @@ class MCPInfrastructureMiddleware(BaseHTTPMiddleware):
     Health check endpoint is exempt from all limits.
     """
 
-    async def dispatch(
-        self, request: Request, call_next
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next) -> Response:
         """Process request with infrastructure checks.
 
         Args:
@@ -91,9 +88,7 @@ class MCPInfrastructureMiddleware(BaseHTTPMiddleware):
         connection_id = f"{api_key_id}:{uuid.uuid4().hex[:8]}"
 
         # Check connection limit
-        can_connect = await connection_tracker.add_connection(
-            api_key_id, connection_id
-        )
+        can_connect = await connection_tracker.add_connection(api_key_id, connection_id)
         if not can_connect:
             log_connection_limit_hit(api_key_id)
             return JSONResponse(

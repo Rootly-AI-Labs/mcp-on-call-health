@@ -1,6 +1,6 @@
 """Integration tests for client resilience patterns."""
+
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -12,8 +12,6 @@ from oncallhealth_mcp.client.config import ClientConfig
 from oncallhealth_mcp.client.exceptions import (
     AuthenticationError,
     NotFoundError,
-    RateLimitError,
-    ServiceUnavailableError,
 )
 
 

@@ -6,6 +6,7 @@ leaks from abandoned connections.
 
 Uses graceful cleanup: errors are logged but don't crash the cleanup job.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -69,6 +70,7 @@ def get_cleanup_job_config() -> dict:
     """
     try:
         from apscheduler.triggers.interval import IntervalTrigger
+
         return {
             "func": cleanup_stale_connections,
             "trigger": IntervalTrigger(minutes=5),

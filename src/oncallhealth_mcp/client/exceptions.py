@@ -4,6 +4,7 @@ MCP exception hierarchy and HTTP-to-exception mapping.
 Provides typed exceptions for MCP error handling and a function to map
 HTTP response status codes to appropriate MCP exceptions.
 """
+
 from enum import Enum
 from typing import Optional
 
@@ -12,6 +13,7 @@ import httpx
 
 class MCPErrorCode(Enum):
     """MCP-specific error codes per MCP specification."""
+
     INVALID_REQUEST = -32600
     METHOD_NOT_FOUND = -32601
     INVALID_PARAMS = -32602
@@ -28,11 +30,12 @@ class MCPError(Exception):
         code: MCP error code
         retriable: Whether the operation can be retried
     """
+
     def __init__(
         self,
         message: str,
         code: MCPErrorCode = MCPErrorCode.INTERNAL_ERROR,
-        retriable: bool = False
+        retriable: bool = False,
     ):
         super().__init__(message)
         self.message = message
@@ -42,11 +45,10 @@ class MCPError(Exception):
 
 class AuthenticationError(MCPError):
     """Invalid or expired API key (401/403)."""
+
     def __init__(self, message: str = "Invalid API key"):
         super().__init__(
-            message=message,
-            code=MCPErrorCode.INVALID_PARAMS,
-            retriable=False
+            message=message, code=MCPErrorCode.INVALID_PARAMS, retriable=False
         )
 
 
@@ -56,45 +58,41 @@ class RateLimitError(MCPError):
     Attributes:
         retry_after: Seconds to wait before retrying (from Retry-After header)
     """
+
     def __init__(self, retry_after: Optional[int] = None):
         message = "Rate limit exceeded"
         if retry_after is not None:
             message += f". Retry after {retry_after} seconds"
         super().__init__(
-            message=message,
-            code=MCPErrorCode.RESOURCE_UNAVAILABLE,
-            retriable=True
+            message=message, code=MCPErrorCode.RESOURCE_UNAVAILABLE, retriable=True
         )
         self.retry_after = retry_after
 
 
 class NotFoundError(MCPError):
     """Resource not found (404)."""
+
     def __init__(self, message: str = "Resource not found"):
         super().__init__(
-            message=message,
-            code=MCPErrorCode.INVALID_PARAMS,
-            retriable=False
+            message=message, code=MCPErrorCode.INVALID_PARAMS, retriable=False
         )
 
 
 class ValidationError(MCPError):
     """Validation error (400/422)."""
+
     def __init__(self, message: str = "Validation error"):
         super().__init__(
-            message=message,
-            code=MCPErrorCode.INVALID_PARAMS,
-            retriable=False
+            message=message, code=MCPErrorCode.INVALID_PARAMS, retriable=False
         )
 
 
 class ServiceUnavailableError(MCPError):
     """Backend service unavailable (5xx)."""
+
     def __init__(self, message: str = "Service temporarily unavailable"):
         super().__init__(
-            message=message,
-            code=MCPErrorCode.RESOURCE_UNAVAILABLE,
-            retriable=True
+            message=message, code=MCPErrorCode.RESOURCE_UNAVAILABLE, retriable=True
         )
 
 
@@ -140,7 +138,5 @@ def map_http_error_to_mcp(response: httpx.Response) -> MCPError:
 
     # Unknown error
     return MCPError(
-        message=f"HTTP {status}",
-        code=MCPErrorCode.INTERNAL_ERROR,
-        retriable=False
+        message=f"HTTP {status}", code=MCPErrorCode.INTERNAL_ERROR, retriable=False
     )

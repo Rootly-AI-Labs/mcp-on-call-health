@@ -1,7 +1,7 @@
 """Tests for CLI entry point."""
+
 import logging
 import os
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -26,7 +26,9 @@ class TestParseArgs:
         assert args.transport == "http"
 
     def test_custom_host_port(self):
-        with patch("sys.argv", ["oncallhealth-mcp", "--host", "0.0.0.0", "--port", "9000"]):
+        with patch(
+            "sys.argv", ["oncallhealth-mcp", "--host", "0.0.0.0", "--port", "9000"]
+        ):
             args = parse_args()
         assert args.host == "0.0.0.0"
         assert args.port == 9000

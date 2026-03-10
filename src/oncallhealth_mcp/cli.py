@@ -1,4 +1,5 @@
 """CLI entry point for oncallhealth-mcp server."""
+
 from __future__ import annotations
 
 import argparse
@@ -32,7 +33,8 @@ def parse_args() -> argparse.Namespace:
         help="Port to bind to (http transport only, default: 8000)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
@@ -96,16 +98,7 @@ def main() -> NoReturn:
             sys.exit(1)
 
         # Get ASGI app from FastMCP
-        if hasattr(mcp_server, "app"):
-            app = mcp_server.app
-        elif hasattr(mcp_server, "asgi_app"):
-            app = mcp_server.asgi_app()
-        elif hasattr(mcp_server, "sse_app"):
-            app = mcp_server.sse_app()
-        else:
-            print("Error: Cannot resolve ASGI app from FastMCP server", file=sys.stderr)
-            sys.exit(1)
-
+        app = mcp_server.http_app()
         uvicorn.run(app, host=args.host, port=args.port)
 
     sys.exit(0)

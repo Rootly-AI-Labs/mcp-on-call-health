@@ -1,4 +1,5 @@
 """Tests for connection state tracking."""
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 
@@ -180,7 +181,10 @@ class TestConcurrency:
     async def test_concurrent_add_respects_limit(self, tracker):
         """Concurrent adds should not exceed MAX_CONNECTIONS_PER_KEY."""
         results = await asyncio.gather(
-            *[tracker.add_connection(1, f"conn-{i}") for i in range(MAX_CONNECTIONS_PER_KEY + 5)]
+            *[
+                tracker.add_connection(1, f"conn-{i}")
+                for i in range(MAX_CONNECTIONS_PER_KEY + 5)
+            ]
         )
         accepted = sum(1 for r in results if r is True)
         assert accepted == MAX_CONNECTIONS_PER_KEY

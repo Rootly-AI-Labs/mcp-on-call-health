@@ -11,6 +11,7 @@ Features:
 - Circuit breaker to prevent retry storms during outages
 - Connection pool health monitoring with automatic recovery
 """
+
 import logging
 import time
 from typing import Any, Optional, TYPE_CHECKING
@@ -105,8 +106,8 @@ class OnCallHealthClient:
             age = now - self._created_at
             if age > self.config.max_client_age_seconds:
                 logger.info(
-                    f"Recreating client after {age/3600:.1f} hours "
-                    f"(max age: {self.config.max_client_age_seconds/3600:.1f} hours)"
+                    f"Recreating client after {age / 3600:.1f} hours "
+                    f"(max age: {self.config.max_client_age_seconds / 3600:.1f} hours)"
                 )
                 await self._recreate_client()
 

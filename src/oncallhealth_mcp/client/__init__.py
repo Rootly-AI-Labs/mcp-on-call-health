@@ -5,6 +5,7 @@ This module provides a resilient HTTP client for MCP server to API communication
 with connection pooling, API key injection, configurable timeouts, typed
 exception handling, automatic retry, circuit breaker, and health monitoring.
 """
+
 from .base import OnCallHealthClient
 from .circuit_breaker import CircuitBreakerOpenError
 from .config import ClientConfig

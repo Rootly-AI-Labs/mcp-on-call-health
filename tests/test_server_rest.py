@@ -5,6 +5,7 @@ Tests verify that the refactored analysis tools correctly:
 2. Normalize responses to match existing MCP tool contracts
 3. Handle errors appropriately (mapping to correct exception types)
 """
+
 import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -56,27 +57,29 @@ class TestAnalysisStatus:
     async def test_returns_normalized_response(self):
         """Verify REST response is normalized to MCP contract."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 100,
-            "status": "completed",
-            "created_at": "2024-01-01T12:00:00",
-            "completed_at": "2024-01-01T12:05:00",
-            "config": {"days_back": 30},
-            "analysis_data": {
-                "team_analysis": [
-                    {"risk_level": "high"},
-                    {"risk_level": "medium"},
-                ],
-                "team_summary": {"average_score": 75},
-            },
-        })
+        mock_response = _mock_response(
+            {
+                "id": 100,
+                "status": "completed",
+                "created_at": "2024-01-01T12:00:00",
+                "completed_at": "2024-01-01T12:05:00",
+                "config": {"days_back": 30},
+                "analysis_data": {
+                    "team_analysis": [
+                        {"risk_level": "high"},
+                        {"risk_level": "medium"},
+                    ],
+                    "team_summary": {"average_score": 75},
+                },
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_status(ctx, analysis_id=100)
+            result = await analysis_status(analysis_id=100, ctx=ctx)
 
             assert result["id"] == 100
             assert result["status"] == "completed"
@@ -100,7 +103,7 @@ class TestAnalysisStatus:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="Analysis not found"):
-                await analysis_status(ctx, analysis_id=999)
+                await analysis_status(analysis_id=999, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -108,27 +111,29 @@ class TestAnalysisStatus:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_status(ctx, analysis_id=100)
+            await analysis_status(analysis_id=100, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_handles_pending_status(self):
         """Verify pending analysis status is returned correctly."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 100,
-            "status": "pending",
-            "created_at": "2024-01-01T12:00:00",
-            "completed_at": None,
-            "config": {"days_back": 30},
-            "analysis_data": None,
-        })
+        mock_response = _mock_response(
+            {
+                "id": 100,
+                "status": "pending",
+                "created_at": "2024-01-01T12:00:00",
+                "completed_at": None,
+                "config": {"days_back": 30},
+                "analysis_data": None,
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_status(ctx, analysis_id=100)
+            result = await analysis_status(analysis_id=100, ctx=ctx)
 
             assert result["id"] == 100
             assert result["status"] == "pending"
@@ -151,18 +156,20 @@ class TestAnalysisResults:
             ],
             "team_summary": {"average_score": 65, "total_incidents": 42},
         }
-        mock_response = _mock_response({
-            "id": 100,
-            "status": "completed",
-            "analysis_data": analysis_data,
-        })
+        mock_response = _mock_response(
+            {
+                "id": 100,
+                "status": "completed",
+                "analysis_data": analysis_data,
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_results(ctx, analysis_id=100)
+            result = await analysis_results(analysis_id=100, ctx=ctx)
 
             assert result == analysis_data
             mock_client.get.assert_called_once_with("/analyses/100")
@@ -171,11 +178,13 @@ class TestAnalysisResults:
     async def test_raises_value_error_when_not_completed(self):
         """Verify status check raises error for incomplete analysis."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 100,
-            "status": "pending",
-            "analysis_data": None,
-        })
+        mock_response = _mock_response(
+            {
+                "id": 100,
+                "status": "pending",
+                "analysis_data": None,
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -183,7 +192,7 @@ class TestAnalysisResults:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(ValueError, match="Analysis not completed yet"):
-                await analysis_results(ctx, analysis_id=100)
+                await analysis_results(analysis_id=100, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_lookup_error_when_not_found(self):
@@ -196,7 +205,7 @@ class TestAnalysisResults:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="Analysis not found"):
-                await analysis_results(ctx, analysis_id=999)
+                await analysis_results(analysis_id=999, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -204,24 +213,26 @@ class TestAnalysisResults:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_results(ctx, analysis_id=100)
+            await analysis_results(analysis_id=100, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_returns_empty_dict_when_no_analysis_data(self):
         """Verify empty dict returned when analysis_data is None."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 100,
-            "status": "completed",
-            "analysis_data": None,
-        })
+        mock_response = _mock_response(
+            {
+                "id": 100,
+                "status": "completed",
+                "analysis_data": None,
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_results(ctx, analysis_id=100)
+            result = await analysis_results(analysis_id=100, ctx=ctx)
 
             assert result == {}
 
@@ -233,29 +244,31 @@ class TestAnalysisCurrent:
     async def test_returns_most_recent(self):
         """Verify first item from list is returned."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "analyses": [
-                {
-                    "id": 100,
-                    "status": "completed",
-                    "created_at": "2024-01-01T12:00:00",
-                    "completed_at": "2024-01-01T12:05:00",
-                    "config": {"days_back": 30},
-                    "analysis_data": {
-                        "team_analysis": [],
-                        "team_summary": {"average_score": 80},
+        mock_response = _mock_response(
+            {
+                "analyses": [
+                    {
+                        "id": 100,
+                        "status": "completed",
+                        "created_at": "2024-01-01T12:00:00",
+                        "completed_at": "2024-01-01T12:05:00",
+                        "config": {"days_back": 30},
+                        "analysis_data": {
+                            "team_analysis": [],
+                            "team_summary": {"average_score": 80},
+                        },
                     },
-                },
-            ],
-            "total": 5,
-        })
+                ],
+                "total": 5,
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_current(ctx)
+            result = await analysis_current(ctx=ctx)
 
             assert result["id"] == 100
             assert result["status"] == "completed"
@@ -265,10 +278,12 @@ class TestAnalysisCurrent:
     async def test_raises_lookup_error_when_empty(self):
         """Verify empty list handling."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "analyses": [],
-            "total": 0,
-        })
+        mock_response = _mock_response(
+            {
+                "analyses": [],
+                "total": 0,
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -276,7 +291,7 @@ class TestAnalysisCurrent:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="No analyses found"):
-                await analysis_current(ctx)
+                await analysis_current(ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -284,7 +299,7 @@ class TestAnalysisCurrent:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_current(ctx)
+            await analysis_current(ctx=ctx)
 
 
 class TestAnalysisStart:
@@ -294,19 +309,21 @@ class TestAnalysisStart:
     async def test_posts_to_run_endpoint(self):
         """Verify POST body and response."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 200,
-            "status": "pending",
-            "integration_name": "Test Integration",
-            "config": {"days_back": 14},
-        })
+        mock_response = _mock_response(
+            {
+                "id": 200,
+                "status": "pending",
+                "integration_name": "Test Integration",
+                "config": {"days_back": 14},
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx, days_back=14, include_weekends=False)
+            result = await analysis_start(days_back=14, include_weekends=False, ctx=ctx)
 
             assert result["analysis_id"] == 200
             assert result["status"] == "started"
@@ -322,18 +339,20 @@ class TestAnalysisStart:
     async def test_uses_default_integration_when_none(self):
         """Verify None integration_id is not included in request."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 200,
-            "status": "pending",
-            "config": {"integration_name": "Default Integration"},
-        })
+        mock_response = _mock_response(
+            {
+                "id": 200,
+                "status": "pending",
+                "config": {"integration_name": "Default Integration"},
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx, integration_id=None)
+            result = await analysis_start(integration_id=None, ctx=ctx)
 
             call_args = mock_client.post.call_args
             request_body = call_args[1]["json"]
@@ -345,18 +364,20 @@ class TestAnalysisStart:
     async def test_includes_explicit_integration_id(self):
         """Verify explicit integration_id is included in request."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 200,
-            "status": "pending",
-            "integration_name": "My Integration",
-        })
+        mock_response = _mock_response(
+            {
+                "id": 200,
+                "status": "pending",
+                "integration_name": "My Integration",
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            await analysis_start(ctx, integration_id=5)
+            await analysis_start(integration_id=5, ctx=ctx)
 
             call_args = mock_client.post.call_args
             request_body = call_args[1]["json"]
@@ -373,7 +394,7 @@ class TestAnalysisStart:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="Integration not found"):
-                await analysis_start(ctx, integration_id=999)
+                await analysis_start(integration_id=999, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -381,25 +402,27 @@ class TestAnalysisStart:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_start(ctx)
+            await analysis_start(ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_extracts_integration_name_from_config(self):
         """Verify integration_name fallback to config when not at top level."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 200,
-            "status": "pending",
-            # No top-level integration_name
-            "config": {"integration_name": "Config Integration"},
-        })
+        mock_response = _mock_response(
+            {
+                "id": 200,
+                "status": "pending",
+                # No top-level integration_name
+                "config": {"integration_name": "Config Integration"},
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx)
+            result = await analysis_start(ctx=ctx)
 
             assert "Config Integration" in result["message"]
 
@@ -407,18 +430,20 @@ class TestAnalysisStart:
     async def test_uses_fallback_integration_name(self):
         """Verify fallback when no integration_name in response."""
         ctx = _mock_ctx_with_api_key()
-        mock_response = _mock_response({
-            "id": 200,
-            "status": "pending",
-            "config": {},
-        })
+        mock_response = _mock_response(
+            {
+                "id": 200,
+                "status": "pending",
+                "config": {},
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx)
+            result = await analysis_start(ctx=ctx)
 
             # Should use "integration" as fallback
             assert "integration" in result["message"]
@@ -433,22 +458,47 @@ class TestIntegrationsList:
         ctx = _mock_ctx_with_api_key()
 
         # Mock responses for all 5 endpoints
-        rootly_response = _mock_response([
-            {"id": 1, "name": "Team Rootly", "organization_name": "Acme", "is_default": True}
-        ])
-        github_response = _mock_response({
-            "connected": True,
-            "integration": {"id": 1, "github_username": "testuser", "organizations": ["acme"]}
-        })
-        slack_response = _mock_response({
-            "connected": True,
-            "integration": {"id": 1, "workspace_id": "W123", "workspace_name": "Acme"}
-        })
+        rootly_response = _mock_response(
+            [
+                {
+                    "id": 1,
+                    "name": "Team Rootly",
+                    "organization_name": "Acme",
+                    "is_default": True,
+                }
+            ]
+        )
+        github_response = _mock_response(
+            {
+                "connected": True,
+                "integration": {
+                    "id": 1,
+                    "github_username": "testuser",
+                    "organizations": ["acme"],
+                },
+            }
+        )
+        slack_response = _mock_response(
+            {
+                "connected": True,
+                "integration": {
+                    "id": 1,
+                    "workspace_id": "W123",
+                    "workspace_name": "Acme",
+                },
+            }
+        )
         jira_response = _mock_response({"connected": False})
-        linear_response = _mock_response({
-            "connected": True,
-            "integration": {"id": 1, "workspace_name": "Acme Linear", "workspace_id": "L123"}
-        })
+        linear_response = _mock_response(
+            {
+                "connected": True,
+                "integration": {
+                    "id": 1,
+                    "workspace_name": "Acme Linear",
+                    "workspace_id": "L123",
+                },
+            }
+        )
 
         with patch("oncallhealth_mcp.server.OnCallHealthClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -461,7 +511,7 @@ class TestIntegrationsList:
             ]
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await integrations_list(ctx)
+            result = await integrations_list(ctx=ctx)
 
             assert "rootly" in result
             assert "github" in result
@@ -494,7 +544,7 @@ class TestIntegrationsList:
             ]
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await integrations_list(ctx)
+            result = await integrations_list(ctx=ctx)
 
             # Should still return valid response with rootly data
             assert len(result["rootly"]) == 1
@@ -509,7 +559,7 @@ class TestIntegrationsList:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await integrations_list(ctx)
+            await integrations_list(ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_integrations_list_all_endpoints_called(self):
@@ -531,7 +581,7 @@ class TestIntegrationsList:
             ]
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            await integrations_list(ctx)
+            await integrations_list(ctx=ctx)
 
             # Verify all 5 endpoints were called
             assert mock_client.get.call_count == 5
@@ -587,7 +637,7 @@ class TestIntegrationNormalizers:
                 "organizations": ["org1", "org2"],
                 "token_preview": "...abc123",
                 "token_source": "oauth",
-            }
+            },
         }
         result = normalize_github_status(data)
 
@@ -619,7 +669,7 @@ class TestIntegrationNormalizers:
                 "workspace_name": "Acme Slack",
                 "slack_user_id": "U456",
                 "token_source": "oauth",
-            }
+            },
         }
         result = normalize_slack_status(data)
 
@@ -646,7 +696,7 @@ class TestIntegrationNormalizers:
                 "token_preview": "...xyz",
                 "token_source": "oauth",
                 "updated_at": "2024-01-15T10:00:00",
-            }
+            },
         }
         result = normalize_jira_status(data)
 
@@ -673,7 +723,7 @@ class TestIntegrationNormalizers:
                 "workspace_url_key": "acme",
                 "token_preview": "...def",
                 "token_source": "oauth",
-            }
+            },
         }
         result = normalize_linear_status(data)
 

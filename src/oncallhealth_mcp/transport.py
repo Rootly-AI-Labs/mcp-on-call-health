@@ -10,6 +10,7 @@ Stateless mode is enabled for horizontal scaling behind load balancers.
 CORS is configured for web-based MCP clients (MCP Inspector, browser tools).
 SSE heartbeat interval prevents proxy timeouts on long-lived connections.
 """
+
 from __future__ import annotations
 
 import logging
@@ -82,6 +83,7 @@ logger = logging.getLogger(__name__)
 infrastructure_middleware = None
 try:
     from oncallhealth_mcp.infrastructure import MCPInfrastructureMiddleware
+
     infrastructure_middleware = Middleware(MCPInfrastructureMiddleware)
     logger.info("MCP infrastructure middleware enabled")
 except ImportError:
@@ -140,12 +142,12 @@ def _create_mcp_http_app() -> Starlette:
             Mount("/", mcp_http),  # Mount MCP app at root to handle all MCP routes
         ],
         middleware=middleware_list,
-        lifespan=getattr(mcp_http, "lifespan", None),  # Use FastMCP's lifespan if available
+        lifespan=getattr(
+            mcp_http, "lifespan", None
+        ),  # Use FastMCP's lifespan if available
     )
 
-    logger.info(
-        "MCP transport initialized: /health, MCP HTTP endpoints"
-    )
+    logger.info("MCP transport initialized: /health, MCP HTTP endpoints")
 
     return app
 

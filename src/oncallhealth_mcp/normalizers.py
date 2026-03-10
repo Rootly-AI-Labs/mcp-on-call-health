@@ -3,6 +3,7 @@
 Transforms REST API responses to match existing MCP tool contracts,
 ensuring backward compatibility for MCP clients.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -72,13 +73,22 @@ def normalize_analysis_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
     # Extract results_summary from analysis_data if status is completed
     analysis_data = rest_data.get("analysis_data")
     if rest_data["status"] == "completed" and analysis_data:
-        team_analysis = analysis_data.get("team_analysis", [])
+        team_analysis = analysis_data.get("team_analysis", {})
+        # team_analysis may be a dict with "members" key or a flat list
+        if isinstance(team_analysis, dict):
+            members = team_analysis.get("members", [])
+        else:
+            members = team_analysis
         team_summary = analysis_data.get("team_summary", {})
 
         normalized["results_summary"] = {
-            "total_users": len(team_analysis),
+            "total_users": len(members),
             "high_risk_count": len(
-                [u for u in team_analysis if u.get("risk_level") == "high"]
+                [
+                    u
+                    for u in members
+                    if isinstance(u, dict) and u.get("risk_level") == "high"
+                ]
             ),
             "team_average_score": team_summary.get("average_score"),
         }
@@ -151,15 +161,17 @@ def normalize_github_status(rest_data: Optional[Dict[str, Any]]) -> list:
     if not rest_data or not rest_data.get("connected"):
         return []
     integration = rest_data.get("integration", {})
-    return [{
-        "id": integration.get("id"),
-        "username": integration.get("github_username"),
-        "organizations": integration.get("organizations", []),
-        "has_token": bool(integration.get("token_preview")),
-        "token_source": integration.get("token_source"),
-        "created_at": serialize_datetime(integration.get("connected_at")),
-        "updated_at": serialize_datetime(integration.get("last_updated")),
-    }]
+    return [
+        {
+            "id": integration.get("id"),
+            "username": integration.get("github_username"),
+            "organizations": integration.get("organizations", []),
+            "has_token": bool(integration.get("token_preview")),
+            "token_source": integration.get("token_source"),
+            "created_at": serialize_datetime(integration.get("connected_at")),
+            "updated_at": serialize_datetime(integration.get("last_updated")),
+        }
+    ]
 
 
 def normalize_slack_status(rest_data: Optional[Dict[str, Any]]) -> list:
@@ -174,16 +186,18 @@ def normalize_slack_status(rest_data: Optional[Dict[str, Any]]) -> list:
     if not rest_data or not rest_data.get("connected"):
         return []
     integration = rest_data.get("integration", {})
-    return [{
-        "id": integration.get("id"),
-        "workspace_id": integration.get("workspace_id"),
-        "workspace_name": integration.get("workspace_name"),
-        "slack_user_id": integration.get("slack_user_id"),
-        "has_token": integration.get("token_source") == "oauth",
-        "token_source": integration.get("token_source"),
-        "created_at": serialize_datetime(integration.get("connected_at")),
-        "updated_at": serialize_datetime(integration.get("last_updated")),
-    }]
+    return [
+        {
+            "id": integration.get("id"),
+            "workspace_id": integration.get("workspace_id"),
+            "workspace_name": integration.get("workspace_name"),
+            "slack_user_id": integration.get("slack_user_id"),
+            "has_token": integration.get("token_source") == "oauth",
+            "token_source": integration.get("token_source"),
+            "created_at": serialize_datetime(integration.get("connected_at")),
+            "updated_at": serialize_datetime(integration.get("last_updated")),
+        }
+    ]
 
 
 def normalize_jira_status(rest_data: Optional[Dict[str, Any]]) -> list:
@@ -198,16 +212,18 @@ def normalize_jira_status(rest_data: Optional[Dict[str, Any]]) -> list:
     if not rest_data or not rest_data.get("connected"):
         return []
     integration = rest_data.get("integration", {})
-    return [{
-        "id": integration.get("id"),
-        "cloud_id": integration.get("jira_cloud_id"),
-        "site_url": integration.get("jira_site_url"),
-        "display_name": integration.get("jira_display_name"),
-        "has_token": bool(integration.get("token_preview")),
-        "token_source": integration.get("token_source"),
-        "created_at": serialize_datetime(integration.get("updated_at")),
-        "updated_at": serialize_datetime(integration.get("updated_at")),
-    }]
+    return [
+        {
+            "id": integration.get("id"),
+            "cloud_id": integration.get("jira_cloud_id"),
+            "site_url": integration.get("jira_site_url"),
+            "display_name": integration.get("jira_display_name"),
+            "has_token": bool(integration.get("token_preview")),
+            "token_source": integration.get("token_source"),
+            "created_at": serialize_datetime(integration.get("updated_at")),
+            "updated_at": serialize_datetime(integration.get("updated_at")),
+        }
+    ]
 
 
 def normalize_linear_status(rest_data: Optional[Dict[str, Any]]) -> list:
@@ -222,16 +238,18 @@ def normalize_linear_status(rest_data: Optional[Dict[str, Any]]) -> list:
     if not rest_data or not rest_data.get("connected"):
         return []
     integration = rest_data.get("integration", {})
-    return [{
-        "id": integration.get("id"),
-        "workspace_id": integration.get("workspace_id"),
-        "workspace_name": integration.get("workspace_name"),
-        "workspace_url_key": integration.get("workspace_url_key"),
-        "has_token": bool(integration.get("token_preview")),
-        "token_source": integration.get("token_source"),
-        "created_at": serialize_datetime(integration.get("updated_at")),
-        "updated_at": serialize_datetime(integration.get("updated_at")),
-    }]
+    return [
+        {
+            "id": integration.get("id"),
+            "workspace_id": integration.get("workspace_id"),
+            "workspace_name": integration.get("workspace_name"),
+            "workspace_url_key": integration.get("workspace_url_key"),
+            "has_token": bool(integration.get("token_preview")),
+            "token_source": integration.get("token_source"),
+            "created_at": serialize_datetime(integration.get("updated_at")),
+            "updated_at": serialize_datetime(integration.get("updated_at")),
+        }
+    ]
 
 
 def normalize_oncall_users(rest_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -296,13 +314,15 @@ def normalize_member_daily_health(rest_data: Dict[str, Any]) -> Dict[str, Any]:
     for day in daily_health:
         if not day.get("has_data", False):
             continue
-        condensed_days.append({
-            "date": day.get("date"),
-            "health_score": day.get("health_score", 0),
-            "incident_count": day.get("incident_count", 0),
-            "after_hours_count": day.get("after_hours_count", 0),
-            "severity_weighted_count": day.get("severity_weighted_count", 0),
-        })
+        condensed_days.append(
+            {
+                "date": day.get("date"),
+                "health_score": day.get("health_score", 0),
+                "incident_count": day.get("incident_count", 0),
+                "after_hours_count": day.get("after_hours_count", 0),
+                "severity_weighted_count": day.get("severity_weighted_count", 0),
+            }
+        )
 
     return {
         "member_email": data.get("member_email"),

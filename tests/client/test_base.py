@@ -1,6 +1,6 @@
 """Tests for OnCallHealthClient base class."""
-import time
-from unittest.mock import AsyncMock, patch, MagicMock
+
+import asyncio
 
 import httpx
 import pytest
@@ -11,8 +11,6 @@ from oncallhealth_mcp.client.config import ClientConfig
 from oncallhealth_mcp.client.exceptions import (
     AuthenticationError,
     NotFoundError,
-    RateLimitError,
-    ServiceUnavailableError,
     ValidationError,
 )
 
@@ -88,7 +86,7 @@ class TestOnCallHealthClientLifecycle:
     async def test_close_closes_httpx_client(self):
         """close() should close the underlying httpx client."""
         client = OnCallHealthClient(api_key="test-key")
-        httpx_client = await client._get_client()
+        await client._get_client()
 
         await client.close()
         assert client._client is None
@@ -279,9 +277,7 @@ class TestOnCallHealthClientErrorMapping:
 
         respx_mock.get("https://api.oncallhealth.ai/api/v1/test").mock(
             return_value=httpx.Response(
-                429,
-                headers={"Retry-After": "60"},
-                json={"error": "Rate limited"}
+                429, headers={"Retry-After": "60"}, json={"error": "Rate limited"}
             )
         )
 
@@ -382,7 +378,3 @@ class TestOnCallHealthClientContextManager:
 
         # Client should still be closed
         assert client._client is None
-
-
-# Import asyncio for sleep
-import asyncio

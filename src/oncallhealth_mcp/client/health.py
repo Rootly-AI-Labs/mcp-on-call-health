@@ -4,6 +4,7 @@ Connection pool health monitoring for OnCallHealth REST API client.
 Provides background monitoring of httpx client connection pool health
 and automatic client recreation when degradation is detected.
 """
+
 from __future__ import annotations
 
 import asyncio

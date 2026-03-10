@@ -5,6 +5,7 @@ Uses aiobreaker to prevent retry storms when the backend is consistently
 failing. The circuit breaker opens after consecutive failures and provides
 automatic recovery via half-open state.
 """
+
 import logging
 from datetime import timedelta
 
@@ -68,9 +69,7 @@ class CircuitBreakerOpenError(Exception):
         self.name = name
         self.time_remaining = time_remaining
         seconds = int(time_remaining.total_seconds())
-        super().__init__(
-            f"Circuit breaker '{name}' is open. Retry in {seconds}s"
-        )
+        super().__init__(f"Circuit breaker '{name}' is open. Retry in {seconds}s")
 
 
 def create_circuit_breaker(

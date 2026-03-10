@@ -5,6 +5,7 @@ CodeMode enabled, that tool functions accept ctx as a keyword argument (last
 parameter with default), and that the CLI HTTP transport uses
 mcp_server.http_app().
 """
+
 import inspect
 from unittest.mock import MagicMock, patch
 

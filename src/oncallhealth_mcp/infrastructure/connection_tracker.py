@@ -6,6 +6,7 @@ a maximum number of concurrent connections per key.
 
 Uses asyncio.Lock for thread-safe operations in async code.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,7 +14,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,7 @@ class ConnectionState:
         last_activity: Maps connection ID to last activity timestamp
     """
 
-    connections: Dict[int, Set[str]] = field(
-        default_factory=lambda: defaultdict(set)
-    )
+    connections: Dict[int, Set[str]] = field(default_factory=lambda: defaultdict(set))
     last_activity: Dict[str, datetime] = field(default_factory=dict)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -78,9 +77,7 @@ class ConnectionState:
             )
             return True
 
-    async def remove_connection(
-        self, api_key_id: int, connection_id: str
-    ) -> None:
+    async def remove_connection(self, api_key_id: int, connection_id: str) -> None:
         """Remove a connection on disconnect.
 
         Cleans up the connection from tracking state. Also removes empty
@@ -117,9 +114,7 @@ class ConnectionState:
             if connection_id in self.last_activity:
                 self.last_activity[connection_id] = datetime.now(timezone.utc)
 
-    async def get_stale_connections(
-        self, cutoff: datetime
-    ) -> List[Tuple[int, str]]:
+    async def get_stale_connections(self, cutoff: datetime) -> List[Tuple[int, str]]:
         """Get connections with no activity since cutoff time.
 
         Used by cleanup task to identify stale connections that should

@@ -4,6 +4,7 @@ Client configuration for the OnCallHealth REST API client.
 Provides configuration dataclass with timeouts, connection pool limits,
 and base URL settings for communicating with oncallhealth.ai APIs.
 """
+
 import os
 from dataclasses import dataclass, field
 
@@ -31,9 +32,12 @@ class ClientConfig:
         circuit_breaker_fail_max: Consecutive failures to trip circuit breaker
         circuit_breaker_timeout_seconds: How long circuit breaker stays open
     """
-    base_url: str = field(default_factory=lambda: os.environ.get(
-        "ONCALLHEALTH_API_URL", "https://api.oncallhealth.ai"
-    ))
+
+    base_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "ONCALLHEALTH_API_URL", "https://api.oncallhealth.ai"
+        )
+    )
     connect_timeout: float = 5.0
     read_timeout: float = 30.0
     write_timeout: float = 10.0
@@ -78,19 +82,24 @@ class ClientConfig:
         Raises:
             ValueError: If environment variable has invalid value
         """
+
         def safe_float(key: str, default: str) -> float:
             """Safely parse float from environment variable."""
             try:
                 return float(os.environ.get(key, default))
             except (ValueError, TypeError) as e:
-                raise ValueError(f"Invalid value for {key}: {os.environ.get(key)}. Must be a number.") from e
+                raise ValueError(
+                    f"Invalid value for {key}: {os.environ.get(key)}. Must be a number."
+                ) from e
 
         def safe_int(key: str, default: str) -> int:
             """Safely parse int from environment variable."""
             try:
                 return int(os.environ.get(key, default))
             except (ValueError, TypeError) as e:
-                raise ValueError(f"Invalid value for {key}: {os.environ.get(key)}. Must be an integer.") from e
+                raise ValueError(
+                    f"Invalid value for {key}: {os.environ.get(key)}. Must be an integer."
+                ) from e
 
         return cls(
             base_url=os.environ.get(

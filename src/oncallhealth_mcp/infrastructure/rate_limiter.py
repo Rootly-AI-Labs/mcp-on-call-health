@@ -8,6 +8,7 @@ based on their resource consumption:
 
 Uses a simple in-memory sliding window counter.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,10 +49,7 @@ _rate_limit_timestamps: Dict[Tuple[str, int], float] = {}
 
 def _cleanup_old_windows(current_window: int, window_seconds: int) -> None:
     """Remove expired rate limit entries to prevent memory growth."""
-    expired_keys = [
-        k for k in _rate_limit_store
-        if k[1] < current_window - 1
-    ]
+    expired_keys = [k for k in _rate_limit_store if k[1] < current_window - 1]
     for k in expired_keys:
         del _rate_limit_store[k]
         _rate_limit_timestamps.pop(k, None)
@@ -188,8 +186,6 @@ async def check_rate_limit(
     except Exception as e:
         # If rate limiting fails, log and allow the request
         # Better to allow than to incorrectly block
-        logger.warning(
-            "MCP rate limit check failed (allowing request): %s", str(e)
-        )
+        logger.warning("MCP rate limit check failed (allowing request): %s", str(e))
 
     return None

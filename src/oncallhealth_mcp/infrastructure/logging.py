@@ -6,6 +6,7 @@ Log levels follow user decisions:
 - WARNING: Limit violations (connection limit hit, rate limit hit)
 - ERROR: Failures (cleanup failed)
 """
+
 from __future__ import annotations
 
 import logging

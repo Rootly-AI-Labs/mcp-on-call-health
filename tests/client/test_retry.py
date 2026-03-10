@@ -1,10 +1,10 @@
 """Tests for retry logic in the MCP client."""
+
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from tenacity import RetryError
 
 from oncallhealth_mcp.client.retry import (
     RETRYABLE_EXCEPTIONS,
@@ -107,7 +107,9 @@ class TestCreateRetryDecorator:
         """Decorator should retry on RETRYABLE_EXCEPTIONS."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=3, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=3, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def failing_function():
             nonlocal call_count
             call_count += 1
@@ -124,7 +126,9 @@ class TestCreateRetryDecorator:
         """Decorator should retry on RetriableHTTPError."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=3, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=3, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def failing_function():
             nonlocal call_count
             call_count += 1
@@ -143,7 +147,9 @@ class TestCreateRetryDecorator:
         """Decorator should stop retrying after max_retries."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=2, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=2, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def always_fails():
             nonlocal call_count
             call_count += 1
@@ -159,7 +165,9 @@ class TestCreateRetryDecorator:
         """Decorator should not retry on non-retryable exceptions."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=3, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=3, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def raises_value_error():
             nonlocal call_count
             call_count += 1
@@ -176,7 +184,9 @@ class TestCreateRetryDecorator:
         call_count = 0
         call_times = []
 
-        @create_retry_decorator(max_retries=2, initial_wait=0.05, max_wait=1.0, jitter=0)
+        @create_retry_decorator(
+            max_retries=2, initial_wait=0.05, max_wait=1.0, jitter=0
+        )
         async def failing_function():
             nonlocal call_count
             call_times.append(asyncio.get_event_loop().time())
@@ -207,7 +217,9 @@ class TestRetryWithDifferentExceptions:
         """Should retry on ConnectError."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=1, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=1, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def func():
             nonlocal call_count
             call_count += 1
@@ -224,7 +236,9 @@ class TestRetryWithDifferentExceptions:
         """Should retry on ReadTimeout."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=1, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=1, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def func():
             nonlocal call_count
             call_count += 1
@@ -241,7 +255,9 @@ class TestRetryWithDifferentExceptions:
         """Should retry on PoolTimeout."""
         call_count = 0
 
-        @create_retry_decorator(max_retries=1, initial_wait=0.01, max_wait=0.1, jitter=0)
+        @create_retry_decorator(
+            max_retries=1, initial_wait=0.01, max_wait=0.1, jitter=0
+        )
         async def func():
             nonlocal call_count
             call_count += 1

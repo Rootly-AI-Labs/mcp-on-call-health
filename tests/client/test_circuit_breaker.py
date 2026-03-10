@@ -1,4 +1,5 @@
 """Tests for circuit breaker in the MCP client."""
+
 import asyncio
 from datetime import timedelta
 from unittest.mock import MagicMock

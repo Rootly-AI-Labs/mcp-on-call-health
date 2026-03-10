@@ -1,4 +1,5 @@
 """MCP server for On-Call Health."""
+
 from __future__ import annotations
 
 import asyncio
@@ -57,7 +58,9 @@ def _validate_api_key(ctx: Any) -> str:
     """
     api_key = extract_api_key_header(ctx)
     if not api_key:
-        raise PermissionError("Missing API key. Set ONCALLHEALTH_API_KEY or provide X-API-Key header.")
+        raise PermissionError(
+            "Missing API key. Set ONCALLHEALTH_API_KEY or provide X-API-Key header."
+        )
     return api_key
 
 
@@ -92,17 +95,18 @@ async def analysis_start(
             response = await client.post("/analyses/run", json=request_body)
             data = response.json()
             # Get integration name from response or config
-            integration_name = (
-                data.get("integration_name")
-                or data.get("config", {}).get("integration_name", "integration")
-            )
+            integration_name = data.get("integration_name") or data.get(
+                "config", {}
+            ).get("integration_name", "integration")
             return normalize_analysis_start_response(data, integration_name, days_back)
         except NotFoundError:
             raise LookupError("Integration not found")
 
 
 @mcp_server.tool()
-async def analysis_status(analysis_id: int, ctx: Context = CurrentContext()) -> Dict[str, Any]:
+async def analysis_status(
+    analysis_id: int, ctx: Context = CurrentContext()
+) -> Dict[str, Any]:
     """Get the status of an analysis."""
     api_key = _validate_api_key(ctx)
     _validate_analysis_id(analysis_id)
@@ -117,7 +121,9 @@ async def analysis_status(analysis_id: int, ctx: Context = CurrentContext()) -> 
 
 
 @mcp_server.tool()
-async def analysis_results(analysis_id: int, ctx: Context = CurrentContext()) -> Dict[str, Any]:
+async def analysis_results(
+    analysis_id: int, ctx: Context = CurrentContext()
+) -> Dict[str, Any]:
     """Get full results for a completed analysis.
 
     WARNING: Returns complete data for 80+ members with ~40 fields each.
@@ -132,7 +138,9 @@ async def analysis_results(analysis_id: int, ctx: Context = CurrentContext()) ->
             response = await client.get(f"/analyses/{analysis_id}")
             data = response.json()
             if data.get("status") != "completed":
-                raise ValueError(f"Analysis not completed yet (status={data['status']})")
+                raise ValueError(
+                    f"Analysis not completed yet (status={data['status']})"
+                )
             # Return full results from analysis_data
             return data.get("analysis_data") or {}
         except NotFoundError:
@@ -140,7 +148,9 @@ async def analysis_results(analysis_id: int, ctx: Context = CurrentContext()) ->
 
 
 @mcp_server.tool()
-async def analysis_summary(analysis_id: int, ctx: Context = CurrentContext()) -> Dict[str, Any]:
+async def analysis_summary(
+    analysis_id: int, ctx: Context = CurrentContext()
+) -> Dict[str, Any]:
     """Get condensed summary of analysis results (optimized for AI agents).
 
     Returns high-level overview instead of full 80+ member details to prevent
@@ -154,7 +164,9 @@ async def analysis_summary(analysis_id: int, ctx: Context = CurrentContext()) ->
             response = await client.get(f"/analyses/{analysis_id}")
             data = response.json()
             if data.get("status") != "completed":
-                raise ValueError(f"Analysis not completed yet (status={data['status']})")
+                raise ValueError(
+                    f"Analysis not completed yet (status={data['status']})"
+                )
 
             # Extract analysis_data
             analysis_data = data.get("analysis_data") or {}
@@ -165,9 +177,7 @@ async def analysis_summary(analysis_id: int, ctx: Context = CurrentContext()) ->
 
             # Sort by OCH score (higher = more at risk)
             sorted_by_score = sorted(
-                members,
-                key=lambda m: m.get("och_score", 0),
-                reverse=True
+                members, key=lambda m: m.get("och_score", 0), reverse=True
             )
 
             # Top 5 at risk (highest scores)
@@ -198,9 +208,15 @@ async def analysis_summary(analysis_id: int, ctx: Context = CurrentContext()) ->
 
             # Team averages
             if total_members > 0:
-                avg_och_score = sum(m.get("och_score", 0) for m in members) / total_members
-                avg_workload = sum(m.get("workload_score", 0) for m in members) / total_members
-                avg_exhaustion = sum(m.get("exhaustion_score", 0) for m in members) / total_members
+                avg_och_score = (
+                    sum(m.get("och_score", 0) for m in members) / total_members
+                )
+                avg_workload = (
+                    sum(m.get("workload_score", 0) for m in members) / total_members
+                )
+                avg_exhaustion = (
+                    sum(m.get("exhaustion_score", 0) for m in members) / total_members
+                )
             else:
                 avg_och_score = avg_workload = avg_exhaustion = 0
 
@@ -333,7 +349,9 @@ async def get_at_risk_users(
             response = await client.get(f"/analyses/{analysis_id}")
             data = response.json()
             if data.get("status") != "completed":
-                raise ValueError(f"Analysis not completed yet (status={data['status']})")
+                raise ValueError(
+                    f"Analysis not completed yet (status={data['status']})"
+                )
 
             # Extract members from team_analysis
             analysis_data = data.get("analysis_data") or {}
@@ -342,7 +360,9 @@ async def get_at_risk_users(
             # Parse risk levels filter
             risk_levels = None
             if include_risk_levels:
-                risk_levels = set(level.strip().lower() for level in include_risk_levels.split(","))
+                risk_levels = set(
+                    level.strip().lower() for level in include_risk_levels.split(",")
+                )
 
             # Filter users above threshold
             at_risk_users = []
@@ -361,20 +381,24 @@ async def get_at_risk_users(
                 # Build compact user object with external IDs
                 health_score = member.get("health_score")
                 if health_score is None:
-                    logger.warning(f"Member {member.get('user_name', 'Unknown')} missing health_score, defaulting to 0")
+                    logger.warning(
+                        f"Member {member.get('user_name', 'Unknown')} missing health_score, defaulting to 0"
+                    )
                     health_score = 0
 
-                at_risk_users.append({
-                    "user_name": member.get("user_name", "Unknown"),
-                    "och_score": och_score,
-                    "risk_level": member.get("risk_level", "unknown"),
-                    "health_score": health_score,
-                    "incident_count": member.get("incident_count", 0),
-                    "rootly_user_id": member.get("rootly_user_id"),
-                    "pagerduty_user_id": member.get("pagerduty_user_id"),
-                    "slack_user_id": member.get("slack_user_id"),
-                    "github_username": member.get("github_username"),
-                })
+                at_risk_users.append(
+                    {
+                        "user_name": member.get("user_name", "Unknown"),
+                        "och_score": och_score,
+                        "risk_level": member.get("risk_level", "unknown"),
+                        "health_score": health_score,
+                        "incident_count": member.get("incident_count", 0),
+                        "rootly_user_id": member.get("rootly_user_id"),
+                        "pagerduty_user_id": member.get("pagerduty_user_id"),
+                        "slack_user_id": member.get("slack_user_id"),
+                        "github_username": member.get("github_username"),
+                    }
+                )
 
             # Sort by OCH score descending (highest risk first)
             at_risk_users.sort(key=lambda u: u["och_score"], reverse=True)
@@ -426,7 +450,9 @@ async def get_safe_responders(
             response = await client.get(f"/analyses/{analysis_id}")
             data = response.json()
             if data.get("status") != "completed":
-                raise ValueError(f"Analysis not completed yet (status={data['status']})")
+                raise ValueError(
+                    f"Analysis not completed yet (status={data['status']})"
+                )
 
             # Extract members from team_analysis
             analysis_data = data.get("analysis_data") or {}
@@ -442,13 +468,15 @@ async def get_safe_responders(
                     continue
 
                 # Build compact user object
-                safe_users.append({
-                    "user_name": member.get("user_name", "Unknown"),
-                    "och_score": och_score,
-                    "risk_level": member.get("risk_level", "unknown"),
-                    "rootly_user_id": member.get("rootly_user_id"),
-                    "slack_user_id": member.get("slack_user_id"),
-                })
+                safe_users.append(
+                    {
+                        "user_name": member.get("user_name", "Unknown"),
+                        "och_score": och_score,
+                        "risk_level": member.get("risk_level", "unknown"),
+                        "rootly_user_id": member.get("rootly_user_id"),
+                        "slack_user_id": member.get("slack_user_id"),
+                    }
+                )
 
             # Sort by OCH score ascending (healthiest first)
             safe_users.sort(key=lambda u: u["och_score"])
@@ -504,7 +532,9 @@ async def check_users_risk(
             response = await client.get(f"/analyses/{analysis_id}")
             data = response.json()
             if data.get("status") != "completed":
-                raise ValueError(f"Analysis not completed yet (status={data['status']})")
+                raise ValueError(
+                    f"Analysis not completed yet (status={data['status']})"
+                )
 
             # Extract members from team_analysis
             analysis_data = data.get("analysis_data") or {}
@@ -519,7 +549,9 @@ async def check_users_risk(
                         user_id = int(id_str)
                         # Validate positive integer within reasonable bounds
                         # Using 64-bit limit to support modern ID systems (Rootly, PagerDuty, etc.)
-                        if user_id <= 0 or user_id > 9223372036854775807:  # Max 64-bit signed int
+                        if (
+                            user_id <= 0 or user_id > 9223372036854775807
+                        ):  # Max 64-bit signed int
                             raise ValueError(f"Invalid rootly_user_id: {id_str}")
                         requested_ids.add(user_id)
                     except ValueError:

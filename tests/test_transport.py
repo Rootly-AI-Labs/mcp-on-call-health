@@ -5,8 +5,8 @@ Tests verify that the transport module correctly:
 2. Provides a valid ASGI application structure
 3. Has CORS headers configured for web-based MCP clients
 """
+
 import pytest
-from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 

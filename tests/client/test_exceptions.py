@@ -1,7 +1,7 @@
 """Tests for MCP exceptions and HTTP error mapping."""
+
 from unittest.mock import MagicMock
 
-import pytest
 
 from oncallhealth_mcp.client.exceptions import (
     AuthenticationError,
@@ -34,9 +34,7 @@ class TestMCPError:
     def test_mcp_error_attributes(self):
         """MCPError should have message, code, and retriable attributes."""
         error = MCPError(
-            message="Test error",
-            code=MCPErrorCode.INTERNAL_ERROR,
-            retriable=True
+            message="Test error", code=MCPErrorCode.INTERNAL_ERROR, retriable=True
         )
         assert error.message == "Test error"
         assert error.code == MCPErrorCode.INTERNAL_ERROR

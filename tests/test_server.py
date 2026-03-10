@@ -1,7 +1,7 @@
 """Unit tests for On-Call Health MCP server."""
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Any, Dict
 
 from oncallhealth_mcp.client.exceptions import NotFoundError
 from oncallhealth_mcp.server import (
@@ -99,14 +99,17 @@ class TestAnalysisSummary:
             "id": 1226,
             "status": "completed",
             "analysis_data": {
-                "team_analysis": {
-                    "members": []
-                },
+                "team_analysis": {"members": []},
                 "team_health": {
                     "overall_score": 0,
-                    "risk_distribution": {"low": 0, "medium": 0, "high": 0, "critical": 0}
-                }
-            }
+                    "risk_distribution": {
+                        "low": 0,
+                        "medium": 0,
+                        "high": 0,
+                        "critical": 0,
+                    },
+                },
+            },
         }
 
         # Mock the client
@@ -150,7 +153,9 @@ class TestGetAtRiskUsers:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_at_risk_users with default parameters."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_at_risk_users
 
@@ -176,7 +181,9 @@ class TestGetAtRiskUsers:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_at_risk_users with custom min_och_score."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_at_risk_users
 
@@ -193,7 +200,9 @@ class TestGetAtRiskUsers:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_at_risk_users filtering only high risk."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_at_risk_users
 
@@ -211,16 +220,22 @@ class TestGetAtRiskUsers:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test that risk level comparison is case-insensitive."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
         # Diana has risk_level="HIGH" (uppercase)
-        result = await get_at_risk_users(1226, include_risk_levels="HIGH,MEDIUM", ctx=ctx)
+        result = await get_at_risk_users(
+            1226, include_risk_levels="HIGH,MEDIUM", ctx=ctx
+        )
 
         # Should include Diana (HIGH) and Bob (medium)
-        assert result["total_at_risk"] == 3  # Quentin (high), Diana (HIGH), Bob (medium)
+        assert (
+            result["total_at_risk"] == 3
+        )  # Quentin (high), Diana (HIGH), Bob (medium)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
@@ -228,7 +243,9 @@ class TestGetAtRiskUsers:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_at_risk_users with criteria matching no users."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_at_risk_users
 
@@ -244,7 +261,9 @@ class TestGetAtRiskUsers:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test that result includes all external integration IDs."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_at_risk_users
 
@@ -300,7 +319,7 @@ class TestGetAtRiskUsers:
             "status": "completed",
             "analysis_data": {
                 # Missing team_analysis
-            }
+            },
         }
 
         mock_client = AsyncMock()
@@ -333,7 +352,7 @@ class TestGetAtRiskUsers:
                 "team_analysis": {
                     # Missing members
                 }
-            }
+            },
         }
 
         mock_client = AsyncMock()
@@ -377,7 +396,9 @@ class TestGetSafeResponders:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_safe_responders with default parameters."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_safe_responders
 
@@ -401,7 +422,9 @@ class TestGetSafeResponders:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_safe_responders with custom max_och_score."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_safe_responders
 
@@ -418,7 +441,9 @@ class TestGetSafeResponders:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_safe_responders respects limit parameter."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_safe_responders
 
@@ -436,7 +461,9 @@ class TestGetSafeResponders:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test get_safe_responders with criteria matching no users."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import get_safe_responders
 
@@ -502,7 +529,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test check_users_risk with mix of at_risk, healthy, not_found."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -532,7 +561,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test check_users_risk with custom min_och_score."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -552,7 +583,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test that medium/high risk_level marks user as at_risk regardless of score."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -571,7 +604,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test that users with score exactly at threshold are marked as at_risk."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -589,7 +624,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test check_users_risk with invalid ID format."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -616,7 +653,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test check_users_risk rejects IDs outside valid range."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -640,7 +679,9 @@ class TestCheckUsersRisk:
         self, mock_client_class, mock_extract, sample_analysis_response
     ):
         """Test check_users_risk when all IDs are not found."""
-        self._setup_mock_client(mock_client_class, mock_extract, sample_analysis_response)
+        self._setup_mock_client(
+            mock_client_class, mock_extract, sample_analysis_response
+        )
 
         from oncallhealth_mcp.server import check_users_risk
 
@@ -754,13 +795,17 @@ class TestValidateIntegrations:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_all_valid(self, mock_client_class, mock_extract):
-        self._setup_mock_client(mock_client_class, mock_extract, {
-            "all_valid": True,
-            "integrations": {
-                "github": {"valid": True, "message": "Token valid"},
-                "slack": {"valid": True, "message": "Token valid"},
+        self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "all_valid": True,
+                "integrations": {
+                    "github": {"valid": True, "message": "Token valid"},
+                    "slack": {"valid": True, "message": "Token valid"},
+                },
             },
-        })
+        )
 
         from oncallhealth_mcp.server import validate_integrations
 
@@ -774,13 +819,21 @@ class TestValidateIntegrations:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_some_invalid(self, mock_client_class, mock_extract):
-        self._setup_mock_client(mock_client_class, mock_extract, {
-            "all_valid": False,
-            "integrations": {
-                "github": {"valid": True, "message": "Token valid"},
-                "jira": {"valid": False, "message": "Token expired", "error_code": "token_expired"},
+        self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "all_valid": False,
+                "integrations": {
+                    "github": {"valid": True, "message": "Token valid"},
+                    "jira": {
+                        "valid": False,
+                        "message": "Token expired",
+                        "error_code": "token_expired",
+                    },
+                },
             },
-        })
+        )
 
         from oncallhealth_mcp.server import validate_integrations
 
@@ -794,10 +847,14 @@ class TestValidateIntegrations:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_force_refresh(self, mock_client_class, mock_extract):
-        mock_client = self._setup_mock_client(mock_client_class, mock_extract, {
-            "all_valid": True,
-            "integrations": {},
-        })
+        mock_client = self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "all_valid": True,
+                "integrations": {},
+            },
+        )
 
         from oncallhealth_mcp.server import validate_integrations
 
@@ -837,12 +894,16 @@ class TestOncallUsers:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_returns_oncall_users(self, mock_client_class, mock_extract):
-        self._setup_mock_client(mock_client_class, mock_extract, {
-            "integration_id": "1",
-            "total_oncall": 2,
-            "oncall_emails": ["alice@example.com", "bob@example.com"],
-            "checked_at": "2026-02-28T14:30:00Z",
-        })
+        self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "integration_id": "1",
+                "total_oncall": 2,
+                "oncall_emails": ["alice@example.com", "bob@example.com"],
+                "checked_at": "2026-02-28T14:30:00Z",
+            },
+        )
 
         from oncallhealth_mcp.server import oncall_users
 
@@ -856,12 +917,16 @@ class TestOncallUsers:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_empty_oncall(self, mock_client_class, mock_extract):
-        self._setup_mock_client(mock_client_class, mock_extract, {
-            "integration_id": "1",
-            "total_oncall": 0,
-            "oncall_emails": [],
-            "checked_at": "2026-02-28T14:30:00Z",
-        })
+        self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "integration_id": "1",
+                "total_oncall": 0,
+                "oncall_emails": [],
+                "checked_at": "2026-02-28T14:30:00Z",
+            },
+        )
 
         from oncallhealth_mcp.server import oncall_users
 
@@ -918,36 +983,40 @@ class TestMemberDailyHealth:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_returns_daily_health(self, mock_client_class, mock_extract):
-        self._setup_mock_client(mock_client_class, mock_extract, {
-            "status": "success",
-            "data": {
-                "member_email": "alice@example.com",
-                "member_name": "Alice Johnson",
-                "daily_health": [
-                    {
-                        "date": "2026-02-27",
-                        "health_score": 75,
-                        "incident_count": 2,
-                        "after_hours_count": 1,
-                        "severity_weighted_count": 24.0,
-                        "has_data": True,
+        self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "status": "success",
+                "data": {
+                    "member_email": "alice@example.com",
+                    "member_name": "Alice Johnson",
+                    "daily_health": [
+                        {
+                            "date": "2026-02-27",
+                            "health_score": 75,
+                            "incident_count": 2,
+                            "after_hours_count": 1,
+                            "severity_weighted_count": 24.0,
+                            "has_data": True,
+                        },
+                        {
+                            "date": "2026-02-26",
+                            "health_score": 0,
+                            "incident_count": 0,
+                            "after_hours_count": 0,
+                            "severity_weighted_count": 0,
+                            "has_data": False,
+                        },
+                    ],
+                    "summary": {
+                        "total_days": 30,
+                        "days_with_data": 8,
+                        "avg_health_score": 72,
                     },
-                    {
-                        "date": "2026-02-26",
-                        "health_score": 0,
-                        "incident_count": 0,
-                        "after_hours_count": 0,
-                        "severity_weighted_count": 0,
-                        "has_data": False,
-                    },
-                ],
-                "summary": {
-                    "total_days": 30,
-                    "days_with_data": 8,
-                    "avg_health_score": 72,
                 },
             },
-        })
+        )
 
         from oncallhealth_mcp.server import member_daily_health
 
@@ -964,11 +1033,15 @@ class TestMemberDailyHealth:
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
     async def test_member_not_found(self, mock_client_class, mock_extract):
-        self._setup_mock_client(mock_client_class, mock_extract, {
-            "status": "error",
-            "message": "Member not found in analysis",
-            "data": None,
-        })
+        self._setup_mock_client(
+            mock_client_class,
+            mock_extract,
+            {
+                "status": "error",
+                "message": "Member not found in analysis",
+                "data": None,
+            },
+        )
 
         from oncallhealth_mcp.server import member_daily_health
 

@@ -1,4 +1,5 @@
 """Auth helpers for MCP tools/resources."""
+
 from __future__ import annotations
 
 import os

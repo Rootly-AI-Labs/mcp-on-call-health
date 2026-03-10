@@ -1,9 +1,9 @@
 """Tests for ClientConfig."""
+
 import os
 from unittest.mock import patch
 
 import httpx
-import pytest
 
 from oncallhealth_mcp.client.config import ClientConfig
 

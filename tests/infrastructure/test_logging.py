@@ -1,7 +1,7 @@
 """Tests for MCP structured logging utilities."""
+
 import logging
 
-import pytest
 
 from oncallhealth_mcp.infrastructure.logging import (
     MCPEvent,
@@ -67,7 +67,9 @@ class TestConvenienceLogFunctions:
 
     def test_log_rate_limit_hit(self, caplog):
         with caplog.at_level(logging.WARNING, logger="oncallhealth_mcp.infrastructure"):
-            log_rate_limit_hit(api_key_id=1, tool_name="analysis_start", limit="5/minute")
+            log_rate_limit_hit(
+                api_key_id=1, tool_name="analysis_start", limit="5/minute"
+            )
         assert "rate_limit_hit" in caplog.text
 
     def test_log_cleanup_completed(self, caplog):

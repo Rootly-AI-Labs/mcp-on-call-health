@@ -1,8 +1,8 @@
 """Tests for auth helpers."""
+
 import os
 from unittest.mock import patch
 
-import pytest
 
 from oncallhealth_mcp.auth import (
     _get_header,

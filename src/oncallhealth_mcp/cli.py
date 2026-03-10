@@ -1,4 +1,5 @@
 """CLI entry point for oncallhealth-mcp server."""
+
 from __future__ import annotations
 
 import argparse
@@ -32,7 +33,8 @@ def parse_args() -> argparse.Namespace:
         help="Port to bind to (http transport only, default: 8000)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )

@@ -1,7 +1,6 @@
 """Tests for MCP rate limiter."""
+
 import json
-import time
-from collections import defaultdict
 from unittest.mock import MagicMock
 
 import pytest
@@ -70,10 +69,12 @@ class TestExtractToolName:
     """Test extract_tool_name()."""
 
     def test_valid_tool_call(self):
-        body = json.dumps({
-            "method": "tools/call",
-            "params": {"name": "analysis_start", "arguments": {}},
-        }).encode()
+        body = json.dumps(
+            {
+                "method": "tools/call",
+                "params": {"name": "analysis_start", "arguments": {}},
+            }
+        ).encode()
         request = _make_request(body)
         assert extract_tool_name(request) == "analysis_start"
 
@@ -101,10 +102,12 @@ class TestExtractToolName:
         assert extract_tool_name(request) is None
 
     def test_non_string_name(self):
-        body = json.dumps({
-            "method": "tools/call",
-            "params": {"name": 123},
-        }).encode()
+        body = json.dumps(
+            {
+                "method": "tools/call",
+                "params": {"name": 123},
+            }
+        ).encode()
         request = _make_request(body)
         assert extract_tool_name(request) is None
 

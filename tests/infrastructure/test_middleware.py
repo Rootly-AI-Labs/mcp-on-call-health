@@ -1,4 +1,5 @@
 """Tests for MCP infrastructure middleware."""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -64,7 +65,7 @@ class TestMiddlewareHealthCheck:
         request = _make_request(path="/health")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_called_once_with(request)
 
     @pytest.mark.asyncio
@@ -76,7 +77,7 @@ class TestMiddlewareHealthCheck:
         request = _make_request(path="/mcp/health")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_called_once_with(request)
 
 
@@ -92,7 +93,7 @@ class TestMiddlewareNoApiKey:
         request = _make_request(api_key=None)
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_called_once_with(request)
 
 
@@ -108,7 +109,9 @@ class TestMiddlewareConnectionLimit:
         request = _make_request(api_key="test-key")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        with patch("oncallhealth_mcp.infrastructure.middleware.connection_tracker") as mock_tracker:
+        with patch(
+            "oncallhealth_mcp.infrastructure.middleware.connection_tracker"
+        ) as mock_tracker:
             mock_tracker.add_connection = AsyncMock(return_value=True)
             mock_tracker.remove_connection = AsyncMock()
             mock_tracker.update_activity = AsyncMock()
@@ -127,7 +130,9 @@ class TestMiddlewareConnectionLimit:
         request = _make_request(api_key="test-key")
         call_next = AsyncMock()
 
-        with patch("oncallhealth_mcp.infrastructure.middleware.connection_tracker") as mock_tracker:
+        with patch(
+            "oncallhealth_mcp.infrastructure.middleware.connection_tracker"
+        ) as mock_tracker:
             mock_tracker.add_connection = AsyncMock(return_value=False)
 
             response = await middleware.dispatch(request, call_next)
@@ -144,7 +149,9 @@ class TestMiddlewareConnectionLimit:
         request = _make_request(api_key="test-key")
         call_next = AsyncMock(side_effect=RuntimeError("boom"))
 
-        with patch("oncallhealth_mcp.infrastructure.middleware.connection_tracker") as mock_tracker:
+        with patch(
+            "oncallhealth_mcp.infrastructure.middleware.connection_tracker"
+        ) as mock_tracker:
             mock_tracker.add_connection = AsyncMock(return_value=True)
             mock_tracker.remove_connection = AsyncMock()
             mock_tracker.update_activity = AsyncMock()
@@ -165,16 +172,27 @@ class TestMiddlewareRateLimit:
         app = MagicMock()
         middleware = MCPInfrastructureMiddleware(app)
 
-        body = json.dumps({
-            "method": "tools/call",
-            "params": {"name": "analysis_start"},
-        }).encode()
+        body = json.dumps(
+            {
+                "method": "tools/call",
+                "params": {"name": "analysis_start"},
+            }
+        ).encode()
         request = _make_request(api_key="test-key", body=body)
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        with patch("oncallhealth_mcp.infrastructure.middleware.connection_tracker") as mock_tracker, \
-             patch("oncallhealth_mcp.infrastructure.middleware.check_rate_limit") as mock_rl, \
-             patch("oncallhealth_mcp.infrastructure.middleware.extract_tool_name", return_value="analysis_start"):
+        with (
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.connection_tracker"
+            ) as mock_tracker,
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.check_rate_limit"
+            ) as mock_rl,
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.extract_tool_name",
+                return_value="analysis_start",
+            ),
+        ):
             mock_tracker.add_connection = AsyncMock(return_value=True)
             mock_tracker.remove_connection = AsyncMock()
             mock_tracker.update_activity = AsyncMock()
@@ -192,10 +210,12 @@ class TestMiddlewareRateLimit:
         app = MagicMock()
         middleware = MCPInfrastructureMiddleware(app)
 
-        body = json.dumps({
-            "method": "tools/call",
-            "params": {"name": "analysis_start"},
-        }).encode()
+        body = json.dumps(
+            {
+                "method": "tools/call",
+                "params": {"name": "analysis_start"},
+            }
+        ).encode()
         request = _make_request(api_key="test-key", body=body)
         call_next = AsyncMock()
         rate_limit_resp = JSONResponse(
@@ -203,9 +223,18 @@ class TestMiddlewareRateLimit:
             content={"error": "rate_limit_exceeded"},
         )
 
-        with patch("oncallhealth_mcp.infrastructure.middleware.connection_tracker") as mock_tracker, \
-             patch("oncallhealth_mcp.infrastructure.middleware.check_rate_limit") as mock_rl, \
-             patch("oncallhealth_mcp.infrastructure.middleware.extract_tool_name", return_value="analysis_start"):
+        with (
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.connection_tracker"
+            ) as mock_tracker,
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.check_rate_limit"
+            ) as mock_rl,
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.extract_tool_name",
+                return_value="analysis_start",
+            ),
+        ):
             mock_tracker.add_connection = AsyncMock(return_value=True)
             mock_tracker.remove_connection = AsyncMock()
             mock_tracker.update_activity = AsyncMock()
@@ -225,9 +254,18 @@ class TestMiddlewareRateLimit:
         request = _make_request(api_key="test-key", body=b'{"method":"resources/read"}')
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        with patch("oncallhealth_mcp.infrastructure.middleware.connection_tracker") as mock_tracker, \
-             patch("oncallhealth_mcp.infrastructure.middleware.check_rate_limit") as mock_rl, \
-             patch("oncallhealth_mcp.infrastructure.middleware.extract_tool_name", return_value=None):
+        with (
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.connection_tracker"
+            ) as mock_tracker,
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.check_rate_limit"
+            ) as mock_rl,
+            patch(
+                "oncallhealth_mcp.infrastructure.middleware.extract_tool_name",
+                return_value=None,
+            ),
+        ):
             mock_tracker.add_connection = AsyncMock(return_value=True)
             mock_tracker.remove_connection = AsyncMock()
             mock_tracker.update_activity = AsyncMock()

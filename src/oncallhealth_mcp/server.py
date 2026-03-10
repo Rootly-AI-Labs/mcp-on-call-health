@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Dict, Optional
 
 from fastmcp import FastMCP, Context
@@ -28,6 +29,62 @@ from oncallhealth_mcp.normalizers import (
 logger = logging.getLogger(__name__)
 
 mcp_server = FastMCP("On-Call Health", transforms=[CodeMode()])
+
+
+class _AnalysisCache:
+    """In-memory TTL cache for completed analysis responses.
+
+    Only completed analyses are cached since they are immutable.
+    Uses time.monotonic() for reliable TTL (not affected by clock adjustments).
+    No locks needed — asyncio is single-threaded.
+    """
+
+    def __init__(self, ttl_seconds: float = 300, max_entries: int = 50) -> None:
+        self._store: Dict[int, tuple[Dict[str, Any], float]] = {}
+        self._ttl_seconds = ttl_seconds
+        self._max_entries = max_entries
+
+    def get(self, analysis_id: int) -> Optional[Dict[str, Any]]:
+        entry = self._store.get(analysis_id)
+        if entry is None:
+            return None
+        data, timestamp = entry
+        if time.monotonic() - timestamp > self._ttl_seconds:
+            del self._store[analysis_id]
+            return None
+        return data
+
+    def put(self, analysis_id: int, data: Dict[str, Any]) -> None:
+        if len(self._store) >= self._max_entries and analysis_id not in self._store:
+            oldest_key = min(self._store, key=lambda k: self._store[k][1])
+            del self._store[oldest_key]
+        self._store[analysis_id] = (data, time.monotonic())
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+_analysis_cache = _AnalysisCache()
+
+
+async def _fetch_analysis(api_key: str, analysis_id: int) -> Dict[str, Any]:
+    """Fetch analysis data, using cache for completed analyses.
+
+    Returns the full API response dict. Completed analyses are cached;
+    pending/running analyses are always fetched fresh.
+    """
+    cached = _analysis_cache.get(analysis_id)
+    if cached is not None:
+        return cached
+
+    async with OnCallHealthClient(api_key=api_key) as client:
+        response = await client.get(f"/analyses/{analysis_id}")
+        data = response.json()
+
+    if data.get("status") == "completed":
+        _analysis_cache.put(analysis_id, data)
+
+    return data
 
 
 # Helper functions for validation
@@ -111,13 +168,11 @@ async def analysis_status(
     api_key = _validate_api_key(ctx)
     _validate_analysis_id(analysis_id)
 
-    async with OnCallHealthClient(api_key=api_key) as client:
-        try:
-            response = await client.get(f"/analyses/{analysis_id}")
-            data = response.json()
-            return normalize_analysis_response(data)
-        except NotFoundError:
-            raise LookupError("Analysis not found")
+    try:
+        data = await _fetch_analysis(api_key, analysis_id)
+        return normalize_analysis_response(data)
+    except NotFoundError:
+        raise LookupError("Analysis not found")
 
 
 @mcp_server.tool()
@@ -133,18 +188,13 @@ async def analysis_results(
     api_key = _validate_api_key(ctx)
     _validate_analysis_id(analysis_id)
 
-    async with OnCallHealthClient(api_key=api_key) as client:
-        try:
-            response = await client.get(f"/analyses/{analysis_id}")
-            data = response.json()
-            if data.get("status") != "completed":
-                raise ValueError(
-                    f"Analysis not completed yet (status={data['status']})"
-                )
-            # Return full results from analysis_data
-            return data.get("analysis_data") or {}
-        except NotFoundError:
-            raise LookupError("Analysis not found")
+    try:
+        data = await _fetch_analysis(api_key, analysis_id)
+        if data.get("status") != "completed":
+            raise ValueError(f"Analysis not completed yet (status={data['status']})")
+        return data.get("analysis_data") or {}
+    except NotFoundError:
+        raise LookupError("Analysis not found")
 
 
 @mcp_server.tool()
@@ -159,82 +209,76 @@ async def analysis_summary(
     api_key = _validate_api_key(ctx)
     _validate_analysis_id(analysis_id)
 
-    async with OnCallHealthClient(api_key=api_key) as client:
-        try:
-            response = await client.get(f"/analyses/{analysis_id}")
-            data = response.json()
-            if data.get("status") != "completed":
-                raise ValueError(
-                    f"Analysis not completed yet (status={data['status']})"
-                )
+    try:
+        data = await _fetch_analysis(api_key, analysis_id)
+        if data.get("status") != "completed":
+            raise ValueError(f"Analysis not completed yet (status={data['status']})")
 
-            # Extract analysis_data
-            analysis_data = data.get("analysis_data") or {}
-            members = analysis_data.get("team_analysis", {}).get("members", [])
+        # Extract analysis_data
+        analysis_data = data.get("analysis_data") or {}
+        members = analysis_data.get("team_analysis", {}).get("members", [])
 
-            # Calculate summary statistics
-            total_members = len(members)
+        # Calculate summary statistics
+        total_members = len(members)
 
-            # Sort by OCH score (higher = more at risk)
-            sorted_by_score = sorted(
-                members, key=lambda m: m.get("och_score", 0), reverse=True
-            )
+        # Sort by OCH score (higher = more at risk)
+        sorted_by_score = sorted(
+            members, key=lambda m: m.get("och_score", 0), reverse=True
+        )
 
-            # Top 5 at risk (highest scores)
-            top_at_risk = [
-                {
-                    "user_name": m.get("user_name", "Unknown"),
-                    "och_score": m.get("och_score", 0),
-                    "risk_level": m.get("risk_level", "unknown"),
-                }
-                for m in sorted_by_score[:5]
-            ]
-
-            # Top 5 healthiest (lowest scores)
-            top_healthy = [
-                {
-                    "user_name": m.get("user_name", "Unknown"),
-                    "och_score": m.get("och_score", 0),
-                    "risk_level": m.get("risk_level", "unknown"),
-                }
-                for m in sorted_by_score[-5:][::-1]  # Reverse to show lowest first
-            ]
-
-            # Risk level distribution
-            risk_distribution: Dict[str, int] = {}
-            for member in members:
-                risk_level = member.get("risk_level", "unknown")
-                risk_distribution[risk_level] = risk_distribution.get(risk_level, 0) + 1
-
-            # Team averages
-            if total_members > 0:
-                avg_och_score = (
-                    sum(m.get("och_score", 0) for m in members) / total_members
-                )
-                avg_workload = (
-                    sum(m.get("workload_score", 0) for m in members) / total_members
-                )
-                avg_exhaustion = (
-                    sum(m.get("exhaustion_score", 0) for m in members) / total_members
-                )
-            else:
-                avg_och_score = avg_workload = avg_exhaustion = 0
-
-            return {
-                "analysis_id": analysis_id,
-                "total_members": total_members,
-                "team_averages": {
-                    "och_score": round(avg_och_score, 2),
-                    "workload_score": round(avg_workload, 2),
-                    "exhaustion_score": round(avg_exhaustion, 2),
-                },
-                "risk_distribution": risk_distribution,
-                "top_at_risk": top_at_risk,
-                "top_healthy": top_healthy,
-                "note": "This is a condensed summary. Use analysis_results() for complete member data.",
+        # Top 5 at risk (highest scores)
+        top_at_risk = [
+            {
+                "user_name": m.get("user_name", "Unknown"),
+                "och_score": m.get("och_score", 0),
+                "risk_level": m.get("risk_level", "unknown"),
             }
-        except NotFoundError:
-            raise LookupError("Analysis not found")
+            for m in sorted_by_score[:5]
+        ]
+
+        # Top 5 healthiest (lowest scores)
+        top_healthy = [
+            {
+                "user_name": m.get("user_name", "Unknown"),
+                "och_score": m.get("och_score", 0),
+                "risk_level": m.get("risk_level", "unknown"),
+            }
+            for m in sorted_by_score[-5:][::-1]  # Reverse to show lowest first
+        ]
+
+        # Risk level distribution
+        risk_distribution: Dict[str, int] = {}
+        for member in members:
+            risk_level = member.get("risk_level", "unknown")
+            risk_distribution[risk_level] = risk_distribution.get(risk_level, 0) + 1
+
+        # Team averages
+        if total_members > 0:
+            avg_och_score = sum(m.get("och_score", 0) for m in members) / total_members
+            avg_workload = (
+                sum(m.get("workload_score", 0) for m in members) / total_members
+            )
+            avg_exhaustion = (
+                sum(m.get("exhaustion_score", 0) for m in members) / total_members
+            )
+        else:
+            avg_och_score = avg_workload = avg_exhaustion = 0
+
+        return {
+            "analysis_id": analysis_id,
+            "total_members": total_members,
+            "team_averages": {
+                "och_score": round(avg_och_score, 2),
+                "workload_score": round(avg_workload, 2),
+                "exhaustion_score": round(avg_exhaustion, 2),
+            },
+            "risk_distribution": risk_distribution,
+            "top_at_risk": top_at_risk,
+            "top_healthy": top_healthy,
+            "note": "This is a condensed summary. Use analysis_results() for complete member data.",
+        }
+    except NotFoundError:
+        raise LookupError("Analysis not found")
 
 
 @mcp_server.tool()
@@ -344,71 +388,67 @@ async def get_at_risk_users(
     if min_och_score < 0:
         raise ValueError(f"min_och_score must be non-negative, got {min_och_score}")
 
-    async with OnCallHealthClient(api_key=api_key) as client:
-        try:
-            response = await client.get(f"/analyses/{analysis_id}")
-            data = response.json()
-            if data.get("status") != "completed":
-                raise ValueError(
-                    f"Analysis not completed yet (status={data['status']})"
+    try:
+        data = await _fetch_analysis(api_key, analysis_id)
+        if data.get("status") != "completed":
+            raise ValueError(f"Analysis not completed yet (status={data['status']})")
+
+        # Extract members from team_analysis
+        analysis_data = data.get("analysis_data") or {}
+        members = analysis_data.get("team_analysis", {}).get("members", [])
+
+        # Parse risk levels filter
+        risk_levels = None
+        if include_risk_levels:
+            risk_levels = set(
+                level.strip().lower() for level in include_risk_levels.split(",")
+            )
+
+        # Filter users above threshold
+        at_risk_users = []
+        for member in members:
+            och_score = member.get("och_score", 0)
+            risk_level = member.get("risk_level", "").lower()
+
+            # Apply OCH score filter
+            if och_score < min_och_score:
+                continue
+
+            # Apply risk level filter if specified
+            if risk_levels and risk_level not in risk_levels:
+                continue
+
+            # Build compact user object with external IDs
+            health_score = member.get("health_score")
+            if health_score is None:
+                logger.warning(
+                    f"Member {member.get('user_name', 'Unknown')} missing health_score, defaulting to 0"
                 )
+                health_score = 0
 
-            # Extract members from team_analysis
-            analysis_data = data.get("analysis_data") or {}
-            members = analysis_data.get("team_analysis", {}).get("members", [])
+            at_risk_users.append(
+                {
+                    "user_name": member.get("user_name", "Unknown"),
+                    "och_score": och_score,
+                    "risk_level": member.get("risk_level", "unknown"),
+                    "health_score": health_score,
+                    "incident_count": member.get("incident_count", 0),
+                    "rootly_user_id": member.get("rootly_user_id"),
+                    "pagerduty_user_id": member.get("pagerduty_user_id"),
+                    "slack_user_id": member.get("slack_user_id"),
+                    "github_username": member.get("github_username"),
+                }
+            )
 
-            # Parse risk levels filter
-            risk_levels = None
-            if include_risk_levels:
-                risk_levels = set(
-                    level.strip().lower() for level in include_risk_levels.split(",")
-                )
+        # Sort by OCH score descending (highest risk first)
+        at_risk_users.sort(key=lambda u: u["och_score"], reverse=True)
 
-            # Filter users above threshold
-            at_risk_users = []
-            for member in members:
-                och_score = member.get("och_score", 0)
-                risk_level = member.get("risk_level", "").lower()
-
-                # Apply OCH score filter
-                if och_score < min_och_score:
-                    continue
-
-                # Apply risk level filter if specified
-                if risk_levels and risk_level not in risk_levels:
-                    continue
-
-                # Build compact user object with external IDs
-                health_score = member.get("health_score")
-                if health_score is None:
-                    logger.warning(
-                        f"Member {member.get('user_name', 'Unknown')} missing health_score, defaulting to 0"
-                    )
-                    health_score = 0
-
-                at_risk_users.append(
-                    {
-                        "user_name": member.get("user_name", "Unknown"),
-                        "och_score": och_score,
-                        "risk_level": member.get("risk_level", "unknown"),
-                        "health_score": health_score,
-                        "incident_count": member.get("incident_count", 0),
-                        "rootly_user_id": member.get("rootly_user_id"),
-                        "pagerduty_user_id": member.get("pagerduty_user_id"),
-                        "slack_user_id": member.get("slack_user_id"),
-                        "github_username": member.get("github_username"),
-                    }
-                )
-
-            # Sort by OCH score descending (highest risk first)
-            at_risk_users.sort(key=lambda u: u["och_score"], reverse=True)
-
-            return {
-                "total_at_risk": len(at_risk_users),
-                "users": at_risk_users,
-            }
-        except NotFoundError:
-            raise LookupError("Analysis not found")
+        return {
+            "total_at_risk": len(at_risk_users),
+            "users": at_risk_users,
+        }
+    except NotFoundError:
+        raise LookupError("Analysis not found")
 
 
 @mcp_server.tool()
@@ -445,51 +485,47 @@ async def get_safe_responders(
     if limit <= 0:
         raise ValueError(f"limit must be positive, got {limit}")
 
-    async with OnCallHealthClient(api_key=api_key) as client:
-        try:
-            response = await client.get(f"/analyses/{analysis_id}")
-            data = response.json()
-            if data.get("status") != "completed":
-                raise ValueError(
-                    f"Analysis not completed yet (status={data['status']})"
-                )
+    try:
+        data = await _fetch_analysis(api_key, analysis_id)
+        if data.get("status") != "completed":
+            raise ValueError(f"Analysis not completed yet (status={data['status']})")
 
-            # Extract members from team_analysis
-            analysis_data = data.get("analysis_data") or {}
-            members = analysis_data.get("team_analysis", {}).get("members", [])
+        # Extract members from team_analysis
+        analysis_data = data.get("analysis_data") or {}
+        members = analysis_data.get("team_analysis", {}).get("members", [])
 
-            # Filter users below threshold
-            safe_users = []
-            for member in members:
-                och_score = member.get("och_score", 0)
+        # Filter users below threshold
+        safe_users = []
+        for member in members:
+            och_score = member.get("och_score", 0)
 
-                # Apply OCH score filter
-                if och_score > max_och_score:
-                    continue
+            # Apply OCH score filter
+            if och_score > max_och_score:
+                continue
 
-                # Build compact user object
-                safe_users.append(
-                    {
-                        "user_name": member.get("user_name", "Unknown"),
-                        "och_score": och_score,
-                        "risk_level": member.get("risk_level", "unknown"),
-                        "rootly_user_id": member.get("rootly_user_id"),
-                        "slack_user_id": member.get("slack_user_id"),
-                    }
-                )
+            # Build compact user object
+            safe_users.append(
+                {
+                    "user_name": member.get("user_name", "Unknown"),
+                    "och_score": och_score,
+                    "risk_level": member.get("risk_level", "unknown"),
+                    "rootly_user_id": member.get("rootly_user_id"),
+                    "slack_user_id": member.get("slack_user_id"),
+                }
+            )
 
-            # Sort by OCH score ascending (healthiest first)
-            safe_users.sort(key=lambda u: u["och_score"])
+        # Sort by OCH score ascending (healthiest first)
+        safe_users.sort(key=lambda u: u["och_score"])
 
-            # Apply limit
-            limited_users = safe_users[:limit]
+        # Apply limit
+        limited_users = safe_users[:limit]
 
-            return {
-                "total_safe": len(safe_users),
-                "users": limited_users,
-            }
-        except NotFoundError:
-            raise LookupError("Analysis not found")
+        return {
+            "total_safe": len(safe_users),
+            "users": limited_users,
+        }
+    except NotFoundError:
+        raise LookupError("Analysis not found")
 
 
 @mcp_server.tool()
@@ -527,80 +563,76 @@ async def check_users_risk(
     if not rootly_user_ids or not rootly_user_ids.strip():
         raise ValueError("rootly_user_ids cannot be empty")
 
-    async with OnCallHealthClient(api_key=api_key) as client:
-        try:
-            response = await client.get(f"/analyses/{analysis_id}")
-            data = response.json()
-            if data.get("status") != "completed":
-                raise ValueError(
-                    f"Analysis not completed yet (status={data['status']})"
-                )
+    try:
+        data = await _fetch_analysis(api_key, analysis_id)
+        if data.get("status") != "completed":
+            raise ValueError(f"Analysis not completed yet (status={data['status']})")
 
-            # Extract members from team_analysis
-            analysis_data = data.get("analysis_data") or {}
-            members = analysis_data.get("team_analysis", {}).get("members", [])
+        # Extract members from team_analysis
+        analysis_data = data.get("analysis_data") or {}
+        members = analysis_data.get("team_analysis", {}).get("members", [])
 
-            # Parse input IDs
-            requested_ids = set()
-            for id_str in rootly_user_ids.split(","):
-                id_str = id_str.strip()
-                if id_str:
-                    try:
-                        user_id = int(id_str)
-                        # Validate positive integer within reasonable bounds
-                        # Using 64-bit limit to support modern ID systems (Rootly, PagerDuty, etc.)
-                        if (
-                            user_id <= 0 or user_id > 9223372036854775807
-                        ):  # Max 64-bit signed int
-                            raise ValueError(f"Invalid rootly_user_id: {id_str}")
-                        requested_ids.add(user_id)
-                    except ValueError:
+        # Parse input IDs
+        requested_ids = set()
+        for id_str in rootly_user_ids.split(","):
+            id_str = id_str.strip()
+            if id_str:
+                try:
+                    user_id = int(id_str)
+                    # Validate positive integer within reasonable bounds
+                    # Using 64-bit limit to support modern ID systems (Rootly, PagerDuty, etc.)
+                    if (
+                        user_id <= 0 or user_id > 9223372036854775807
+                    ):  # Max 64-bit signed int
                         raise ValueError(f"Invalid rootly_user_id: {id_str}")
+                    requested_ids.add(user_id)
+                except ValueError:
+                    raise ValueError(f"Invalid rootly_user_id: {id_str}")
 
-            # Build lookup by rootly_user_id
-            members_by_rootly_id = {}
-            for member in members:
-                rootly_id = member.get("rootly_user_id")
-                if rootly_id is not None:
-                    members_by_rootly_id[rootly_id] = member
+        # Build lookup by rootly_user_id
+        members_by_rootly_id = {}
+        for member in members:
+            rootly_id = member.get("rootly_user_id")
+            if rootly_id is not None:
+                members_by_rootly_id[rootly_id] = member
 
-            # Categorize users
-            at_risk = []
-            healthy = []
-            not_found = []
+        # Categorize users
+        at_risk = []
+        healthy = []
+        not_found = []
 
-            for rootly_id in requested_ids:
-                member = members_by_rootly_id.get(rootly_id)
+        for rootly_id in requested_ids:
+            member = members_by_rootly_id.get(rootly_id)
 
-                if member is None:
-                    not_found.append(rootly_id)
-                    continue
+            if member is None:
+                not_found.append(rootly_id)
+                continue
 
-                # Check if at risk
-                och_score = member.get("och_score", 0)
-                risk_level = member.get("risk_level", "").lower()
+            # Check if at risk
+            och_score = member.get("och_score", 0)
+            risk_level = member.get("risk_level", "").lower()
 
-                user_info = {
-                    "rootly_user_id": rootly_id,
-                    "user_name": member.get("user_name", "Unknown"),
-                    "och_score": och_score,
-                    "risk_level": member.get("risk_level", "unknown"),
-                }
-
-                if och_score >= min_och_score or risk_level in ["medium", "high"]:
-                    at_risk.append(user_info)
-                else:
-                    healthy.append(user_info)
-
-            return {
-                "checked": len(requested_ids),
-                "found": len(at_risk) + len(healthy),
-                "at_risk": at_risk,
-                "healthy": healthy,
-                "not_found": not_found,
+            user_info = {
+                "rootly_user_id": rootly_id,
+                "user_name": member.get("user_name", "Unknown"),
+                "och_score": och_score,
+                "risk_level": member.get("risk_level", "unknown"),
             }
-        except NotFoundError:
-            raise LookupError("Analysis not found")
+
+            if och_score >= min_och_score or risk_level in ["medium", "high"]:
+                at_risk.append(user_info)
+            else:
+                healthy.append(user_info)
+
+        return {
+            "checked": len(requested_ids),
+            "found": len(at_risk) + len(healthy),
+            "at_risk": at_risk,
+            "healthy": healthy,
+            "not_found": not_found,
+        }
+    except NotFoundError:
+        raise LookupError("Analysis not found")
 
 
 @mcp_server.tool()

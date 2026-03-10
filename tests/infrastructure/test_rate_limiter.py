@@ -1,7 +1,7 @@
 """Tests for MCP rate limiter."""
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -177,15 +177,18 @@ class TestCheckRateLimit:
     @pytest.mark.asyncio
     async def test_unknown_tool_uses_default(self):
         """Unknown tools should use the default limit."""
-        for i in range(100):
-            request = _make_request()
-            result = await check_rate_limit(request, 1, "unknown_tool")
-            assert result is None
+        # Freeze time to avoid minute-boundary flakiness
+        with patch("oncallhealth_mcp.infrastructure.rate_limiter.time") as mock_time:
+            mock_time.time.return_value = 1000.0
+            for i in range(100):
+                request = _make_request()
+                result = await check_rate_limit(request, 1, "unknown_tool")
+                assert result is None
 
-        # 101st should be blocked (default is 100/minute)
-        result = await check_rate_limit(_make_request(), 1, "unknown_tool")
-        assert result is not None
-        assert result.status_code == 429
+            # 101st should be blocked (default is 100/minute)
+            result = await check_rate_limit(_make_request(), 1, "unknown_tool")
+            assert result is not None
+            assert result.status_code == 429
 
 
 class TestCleanupOldWindows:

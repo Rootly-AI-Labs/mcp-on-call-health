@@ -1,10 +1,14 @@
 """Unit tests for On-Call Health MCP server."""
 
+import time
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from oncallhealth_mcp.client.exceptions import NotFoundError
 from oncallhealth_mcp.server import (
+    _AnalysisCache,
+    _fetch_analysis,
     _validate_analysis_id,
     _validate_api_key,
 )
@@ -1071,3 +1075,120 @@ class TestMemberDailyHealth:
 
         with pytest.raises(ValueError, match="analysis_id must be positive"):
             await member_daily_health(0, "alice@example.com", ctx=ctx)
+
+
+class TestAnalysisCache:
+    """Unit tests for _AnalysisCache."""
+
+    def test_get_returns_none_on_miss(self):
+        cache = _AnalysisCache()
+        assert cache.get(999) is None
+
+    def test_put_and_get_returns_data(self):
+        cache = _AnalysisCache()
+        data = {"id": 1, "status": "completed"}
+        cache.put(1, data)
+        assert cache.get(1) == data
+
+    def test_expired_entry_returns_none(self):
+        cache = _AnalysisCache(ttl_seconds=0.1)
+        cache.put(1, {"id": 1})
+        time.sleep(0.15)
+        assert cache.get(1) is None
+
+    def test_max_entries_evicts_oldest(self):
+        cache = _AnalysisCache(max_entries=2)
+        cache.put(1, {"id": 1})
+        time.sleep(0.01)  # Ensure monotonic ordering
+        cache.put(2, {"id": 2})
+        time.sleep(0.01)
+        cache.put(3, {"id": 3})  # Should evict entry 1
+        assert cache.get(1) is None
+        assert cache.get(2) == {"id": 2}
+        assert cache.get(3) == {"id": 3}
+
+    def test_clear_empties_cache(self):
+        cache = _AnalysisCache()
+        cache.put(1, {"id": 1})
+        cache.put(2, {"id": 2})
+        cache.clear()
+        assert cache.get(1) is None
+        assert cache.get(2) is None
+
+
+class TestFetchAnalysisCache:
+    """Integration tests for _fetch_analysis caching behavior."""
+
+    @patch("oncallhealth_mcp.server.OnCallHealthClient")
+    async def test_completed_analysis_cached(self, mock_client_class):
+        """Second call for a completed analysis should not hit the API."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": 1226,
+            "status": "completed",
+            "analysis_data": {"team_analysis": {"members": []}},
+        }
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        # First call — hits API
+        result1 = await _fetch_analysis("test-key", 1226)
+        assert result1["status"] == "completed"
+        assert mock_client.get.call_count == 1
+
+        # Second call — served from cache, no new API call
+        result2 = await _fetch_analysis("test-key", 1226)
+        assert result2 == result1
+        assert mock_client.get.call_count == 1  # Still 1
+
+    @patch("oncallhealth_mcp.server.OnCallHealthClient")
+    async def test_pending_analysis_not_cached(self, mock_client_class):
+        """Pending analyses should always fetch fresh data."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": 42,
+            "status": "pending",
+        }
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        await _fetch_analysis("test-key", 42)
+        await _fetch_analysis("test-key", 42)
+        assert mock_client.get.call_count == 2  # Both hit API
+
+    @patch("oncallhealth_mcp.server.OnCallHealthClient")
+    @patch("oncallhealth_mcp.server.extract_api_key_header")
+    async def test_cache_shared_across_tools(self, mock_extract, mock_client_class):
+        """analysis_status caches, then analysis_results reuses the cache."""
+        mock_extract.return_value = "test-key"
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": 1226,
+            "status": "completed",
+            "created_at": "2024-01-01T00:00:00Z",
+            "analysis_data": {"team_analysis": {"members": []}},
+        }
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        from oncallhealth_mcp.server import analysis_results, analysis_status
+
+        ctx = MagicMock()
+
+        # First tool call — fetches and caches
+        await analysis_status(1226, ctx=ctx)
+        assert mock_client.get.call_count == 1
+
+        # Second tool (different function) — served from cache
+        result = await analysis_results(1226, ctx=ctx)
+        assert mock_client.get.call_count == 1  # Still 1
+        assert result == {"team_analysis": {"members": []}}

@@ -4,6 +4,16 @@ import pytest
 from typing import Any, Dict
 
 
+@pytest.fixture(autouse=True)
+def _clear_analysis_cache():
+    """Clear the analysis cache between every test."""
+    from oncallhealth_mcp.server import _analysis_cache
+
+    _analysis_cache.clear()
+    yield
+    _analysis_cache.clear()
+
+
 @pytest.fixture
 def mock_context():
     """Mock context object with API key."""

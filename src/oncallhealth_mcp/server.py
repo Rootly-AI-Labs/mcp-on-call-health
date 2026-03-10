@@ -201,7 +201,7 @@ async def analysis_summary(
             ]
 
             # Risk level distribution
-            risk_distribution = {}
+            risk_distribution: Dict[str, int] = {}
             for member in members:
                 risk_level = member.get("risk_level", "unknown")
                 risk_distribution[risk_level] = risk_distribution.get(risk_level, 0) + 1
@@ -285,7 +285,7 @@ async def integrations_list(ctx: Context = CurrentContext()) -> Dict[str, Any]:
         endpoint_names = ["rootly", "github", "slack", "jira", "linear"]
 
         for idx, (name, result) in enumerate(zip(endpoint_names, results)):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.warning(f"Failed to fetch {name} integrations: {result}")
                 integrations[name] = []
             else:

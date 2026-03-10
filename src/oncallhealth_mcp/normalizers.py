@@ -72,13 +72,18 @@ def normalize_analysis_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
     # Extract results_summary from analysis_data if status is completed
     analysis_data = rest_data.get("analysis_data")
     if rest_data["status"] == "completed" and analysis_data:
-        team_analysis = analysis_data.get("team_analysis", [])
+        team_analysis = analysis_data.get("team_analysis", {})
+        # team_analysis may be a dict with "members" key or a flat list
+        if isinstance(team_analysis, dict):
+            members = team_analysis.get("members", [])
+        else:
+            members = team_analysis
         team_summary = analysis_data.get("team_summary", {})
 
         normalized["results_summary"] = {
-            "total_users": len(team_analysis),
+            "total_users": len(members),
             "high_risk_count": len(
-                [u for u in team_analysis if u.get("risk_level") == "high"]
+                [u for u in members if isinstance(u, dict) and u.get("risk_level") == "high"]
             ),
             "team_average_score": team_summary.get("average_score"),
         }

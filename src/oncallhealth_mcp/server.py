@@ -5,7 +5,9 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP, Context
+from fastmcp.dependencies import CurrentContext
+from fastmcp.experimental.transforms.code_mode import CodeMode
 
 from oncallhealth_mcp.auth import extract_api_key_header
 from oncallhealth_mcp.client import NotFoundError, OnCallHealthClient
@@ -24,7 +26,7 @@ from oncallhealth_mcp.normalizers import (
 
 logger = logging.getLogger(__name__)
 
-mcp_server = FastMCP("On-Call Health")
+mcp_server = FastMCP("On-Call Health", transforms=[CodeMode()])
 
 
 # Helper functions for validation
@@ -61,10 +63,10 @@ def _validate_api_key(ctx: Any) -> str:
 
 @mcp_server.tool()
 async def analysis_start(
-    ctx: Any,
     days_back: int = 30,
     include_weekends: bool = True,
     integration_id: Optional[int] = None,
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Start a new health analysis."""
     api_key = _validate_api_key(ctx)
@@ -100,7 +102,7 @@ async def analysis_start(
 
 
 @mcp_server.tool()
-async def analysis_status(ctx: Any, analysis_id: int) -> Dict[str, Any]:
+async def analysis_status(analysis_id: int, ctx: Context = CurrentContext()) -> Dict[str, Any]:
     """Get the status of an analysis."""
     api_key = _validate_api_key(ctx)
     _validate_analysis_id(analysis_id)
@@ -115,7 +117,7 @@ async def analysis_status(ctx: Any, analysis_id: int) -> Dict[str, Any]:
 
 
 @mcp_server.tool()
-async def analysis_results(ctx: Any, analysis_id: int) -> Dict[str, Any]:
+async def analysis_results(analysis_id: int, ctx: Context = CurrentContext()) -> Dict[str, Any]:
     """Get full results for a completed analysis.
 
     WARNING: Returns complete data for 80+ members with ~40 fields each.
@@ -138,7 +140,7 @@ async def analysis_results(ctx: Any, analysis_id: int) -> Dict[str, Any]:
 
 
 @mcp_server.tool()
-async def analysis_summary(ctx: Any, analysis_id: int) -> Dict[str, Any]:
+async def analysis_summary(analysis_id: int, ctx: Context = CurrentContext()) -> Dict[str, Any]:
     """Get condensed summary of analysis results (optimized for AI agents).
 
     Returns high-level overview instead of full 80+ member details to prevent
@@ -220,7 +222,7 @@ async def analysis_summary(ctx: Any, analysis_id: int) -> Dict[str, Any]:
 
 
 @mcp_server.tool()
-async def analysis_current(ctx: Any) -> Dict[str, Any]:
+async def analysis_current(ctx: Context = CurrentContext()) -> Dict[str, Any]:
     """Get the most recent analysis for the current user.
 
     Returns normalized metadata only (status, timestamps, configuration).
@@ -240,7 +242,7 @@ async def analysis_current(ctx: Any) -> Dict[str, Any]:
 
 
 @mcp_server.tool()
-async def integrations_list(ctx: Any) -> Dict[str, Any]:
+async def integrations_list(ctx: Context = CurrentContext()) -> Dict[str, Any]:
     """List connected integrations for the current user."""
     api_key = _validate_api_key(ctx)
 
@@ -295,10 +297,10 @@ async def integrations_list(ctx: Any) -> Dict[str, Any]:
 
 @mcp_server.tool()
 async def get_at_risk_users(
-    ctx: Any,
     analysis_id: int,
     min_och_score: float = 50.0,
-    include_risk_levels: Optional[str] = "medium,high"
+    include_risk_levels: Optional[str] = "medium,high",
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Get users at or above health risk threshold with their external IDs.
 
@@ -387,10 +389,10 @@ async def get_at_risk_users(
 
 @mcp_server.tool()
 async def get_safe_responders(
-    ctx: Any,
     analysis_id: int,
     max_och_score: float = 30.0,
-    limit: int = 10
+    limit: int = 10,
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Get users with low health risk suitable for additional on-call.
 
@@ -464,10 +466,10 @@ async def get_safe_responders(
 
 @mcp_server.tool()
 async def check_users_risk(
-    ctx: Any,
     analysis_id: int,
     rootly_user_ids: str,
-    min_och_score: float = 50.0
+    min_och_score: float = 50.0,
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Check health risk for specific users by their Rootly user IDs.
 
@@ -571,8 +573,8 @@ async def check_users_risk(
 
 @mcp_server.tool()
 async def validate_integrations(
-    ctx: Any,
     force_refresh: bool = False,
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Check if all connected integrations have valid credentials.
 
@@ -604,8 +606,8 @@ async def validate_integrations(
 
 @mcp_server.tool()
 async def oncall_users(
-    ctx: Any,
     integration_id: int,
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Get the list of users currently on-call for an integration.
 
@@ -642,9 +644,9 @@ async def oncall_users(
 
 @mcp_server.tool()
 async def member_daily_health(
-    ctx: Any,
     analysis_id: int,
     member_email: str,
+    ctx: Context = CurrentContext(),
 ) -> Dict[str, Any]:
     """Get daily health breakdown for a specific team member.
 

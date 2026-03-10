@@ -76,7 +76,7 @@ class TestAnalysisStatus:
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_status(ctx, analysis_id=100)
+            result = await analysis_status(analysis_id=100, ctx=ctx)
 
             assert result["id"] == 100
             assert result["status"] == "completed"
@@ -100,7 +100,7 @@ class TestAnalysisStatus:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="Analysis not found"):
-                await analysis_status(ctx, analysis_id=999)
+                await analysis_status(analysis_id=999, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -108,7 +108,7 @@ class TestAnalysisStatus:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_status(ctx, analysis_id=100)
+            await analysis_status(analysis_id=100, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_handles_pending_status(self):
@@ -128,7 +128,7 @@ class TestAnalysisStatus:
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_status(ctx, analysis_id=100)
+            result = await analysis_status(analysis_id=100, ctx=ctx)
 
             assert result["id"] == 100
             assert result["status"] == "pending"
@@ -162,7 +162,7 @@ class TestAnalysisResults:
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_results(ctx, analysis_id=100)
+            result = await analysis_results(analysis_id=100, ctx=ctx)
 
             assert result == analysis_data
             mock_client.get.assert_called_once_with("/analyses/100")
@@ -183,7 +183,7 @@ class TestAnalysisResults:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(ValueError, match="Analysis not completed yet"):
-                await analysis_results(ctx, analysis_id=100)
+                await analysis_results(analysis_id=100, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_lookup_error_when_not_found(self):
@@ -196,7 +196,7 @@ class TestAnalysisResults:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="Analysis not found"):
-                await analysis_results(ctx, analysis_id=999)
+                await analysis_results(analysis_id=999, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -204,7 +204,7 @@ class TestAnalysisResults:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_results(ctx, analysis_id=100)
+            await analysis_results(analysis_id=100, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_returns_empty_dict_when_no_analysis_data(self):
@@ -221,7 +221,7 @@ class TestAnalysisResults:
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_results(ctx, analysis_id=100)
+            result = await analysis_results(analysis_id=100, ctx=ctx)
 
             assert result == {}
 
@@ -255,7 +255,7 @@ class TestAnalysisCurrent:
             mock_client.get.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_current(ctx)
+            result = await analysis_current(ctx=ctx)
 
             assert result["id"] == 100
             assert result["status"] == "completed"
@@ -276,7 +276,7 @@ class TestAnalysisCurrent:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="No analyses found"):
-                await analysis_current(ctx)
+                await analysis_current(ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -284,7 +284,7 @@ class TestAnalysisCurrent:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_current(ctx)
+            await analysis_current(ctx=ctx)
 
 
 class TestAnalysisStart:
@@ -306,7 +306,7 @@ class TestAnalysisStart:
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx, days_back=14, include_weekends=False)
+            result = await analysis_start(days_back=14, include_weekends=False, ctx=ctx)
 
             assert result["analysis_id"] == 200
             assert result["status"] == "started"
@@ -333,7 +333,7 @@ class TestAnalysisStart:
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx, integration_id=None)
+            result = await analysis_start(integration_id=None, ctx=ctx)
 
             call_args = mock_client.post.call_args
             request_body = call_args[1]["json"]
@@ -356,7 +356,7 @@ class TestAnalysisStart:
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            await analysis_start(ctx, integration_id=5)
+            await analysis_start(integration_id=5, ctx=ctx)
 
             call_args = mock_client.post.call_args
             request_body = call_args[1]["json"]
@@ -373,7 +373,7 @@ class TestAnalysisStart:
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             with pytest.raises(LookupError, match="Integration not found"):
-                await analysis_start(ctx, integration_id=999)
+                await analysis_start(integration_id=999, ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_raises_permission_error_without_api_key(self):
@@ -381,7 +381,7 @@ class TestAnalysisStart:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await analysis_start(ctx)
+            await analysis_start(ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_extracts_integration_name_from_config(self):
@@ -399,7 +399,7 @@ class TestAnalysisStart:
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx)
+            result = await analysis_start(ctx=ctx)
 
             assert "Config Integration" in result["message"]
 
@@ -418,7 +418,7 @@ class TestAnalysisStart:
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await analysis_start(ctx)
+            result = await analysis_start(ctx=ctx)
 
             # Should use "integration" as fallback
             assert "integration" in result["message"]
@@ -461,7 +461,7 @@ class TestIntegrationsList:
             ]
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await integrations_list(ctx)
+            result = await integrations_list(ctx=ctx)
 
             assert "rootly" in result
             assert "github" in result
@@ -494,7 +494,7 @@ class TestIntegrationsList:
             ]
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            result = await integrations_list(ctx)
+            result = await integrations_list(ctx=ctx)
 
             # Should still return valid response with rootly data
             assert len(result["rootly"]) == 1
@@ -509,7 +509,7 @@ class TestIntegrationsList:
         ctx = _mock_ctx_without_api_key()
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await integrations_list(ctx)
+            await integrations_list(ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_integrations_list_all_endpoints_called(self):
@@ -531,7 +531,7 @@ class TestIntegrationsList:
             ]
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-            await integrations_list(ctx)
+            await integrations_list(ctx=ctx)
 
             # Verify all 5 endpoints were called
             assert mock_client.get.call_count == 5

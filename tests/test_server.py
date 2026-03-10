@@ -78,7 +78,7 @@ class TestAnalysisSummary:
         from oncallhealth_mcp.server import analysis_summary
 
         ctx = MagicMock()
-        result = await analysis_summary(ctx, 1226)
+        result = await analysis_summary(1226, ctx=ctx)
 
         # Verify it correctly counts members from team_analysis.members
         assert result["total_members"] == 2
@@ -119,7 +119,7 @@ class TestAnalysisSummary:
         from oncallhealth_mcp.server import analysis_summary
 
         ctx = MagicMock()
-        result = await analysis_summary(ctx, 1226)
+        result = await analysis_summary(1226, ctx=ctx)
 
         assert result["total_members"] == 0
 
@@ -155,7 +155,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226)
+        result = await get_at_risk_users(1226, ctx=ctx)
 
         # Default: min_och_score=50.0, include_risk_levels="medium,high"
         # Should return Quentin (72.5, high), Diana (68.0, HIGH), Bob (55.0, medium)
@@ -181,7 +181,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226, min_och_score=70.0)
+        result = await get_at_risk_users(1226, min_och_score=70.0, ctx=ctx)
 
         # Only Quentin (72.5) should be returned
         assert result["total_at_risk"] == 1
@@ -198,7 +198,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226, include_risk_levels="high")
+        result = await get_at_risk_users(1226, include_risk_levels="high", ctx=ctx)
 
         # Should return Quentin (high) and Diana (HIGH - case insensitive)
         assert result["total_at_risk"] == 2
@@ -217,7 +217,7 @@ class TestGetAtRiskUsers:
 
         ctx = MagicMock()
         # Diana has risk_level="HIGH" (uppercase)
-        result = await get_at_risk_users(ctx, 1226, include_risk_levels="HIGH,MEDIUM")
+        result = await get_at_risk_users(1226, include_risk_levels="HIGH,MEDIUM", ctx=ctx)
 
         # Should include Diana (HIGH) and Bob (medium)
         assert result["total_at_risk"] == 3  # Quentin (high), Diana (HIGH), Bob (medium)
@@ -233,7 +233,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226, min_och_score=100.0)
+        result = await get_at_risk_users(1226, min_och_score=100.0, ctx=ctx)
 
         assert result["total_at_risk"] == 0
         assert result["users"] == []
@@ -249,7 +249,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226, min_och_score=70.0)
+        result = await get_at_risk_users(1226, min_och_score=70.0, ctx=ctx)
 
         user = result["users"][0]
         assert user["rootly_user_id"] == 2381
@@ -281,7 +281,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226)
+        result = await get_at_risk_users(1226, ctx=ctx)
 
         assert result["total_at_risk"] == 0
         assert result["users"] == []
@@ -312,7 +312,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226)
+        result = await get_at_risk_users(1226, ctx=ctx)
 
         assert result["total_at_risk"] == 0
         assert result["users"] == []
@@ -345,7 +345,7 @@ class TestGetAtRiskUsers:
         from oncallhealth_mcp.server import get_at_risk_users
 
         ctx = MagicMock()
-        result = await get_at_risk_users(ctx, 1226)
+        result = await get_at_risk_users(1226, ctx=ctx)
 
         assert result["total_at_risk"] == 0
         assert result["users"] == []
@@ -382,7 +382,7 @@ class TestGetSafeResponders:
         from oncallhealth_mcp.server import get_safe_responders
 
         ctx = MagicMock()
-        result = await get_safe_responders(ctx, 1226)
+        result = await get_safe_responders(1226, ctx=ctx)
 
         # Default: max_och_score=30.0, limit=10
         # Should return Alice (12.3) and Carol (25.0)
@@ -406,7 +406,7 @@ class TestGetSafeResponders:
         from oncallhealth_mcp.server import get_safe_responders
 
         ctx = MagicMock()
-        result = await get_safe_responders(ctx, 1226, max_och_score=15.0)
+        result = await get_safe_responders(1226, max_och_score=15.0, ctx=ctx)
 
         # Only Alice (12.3) should be returned
         assert result["total_safe"] == 1
@@ -423,7 +423,7 @@ class TestGetSafeResponders:
         from oncallhealth_mcp.server import get_safe_responders
 
         ctx = MagicMock()
-        result = await get_safe_responders(ctx, 1226, max_och_score=30.0, limit=1)
+        result = await get_safe_responders(1226, max_och_score=30.0, limit=1, ctx=ctx)
 
         # Should return only 1 user even though 2 qualify
         assert result["total_safe"] == 2  # Total qualifying
@@ -441,7 +441,7 @@ class TestGetSafeResponders:
         from oncallhealth_mcp.server import get_safe_responders
 
         ctx = MagicMock()
-        result = await get_safe_responders(ctx, 1226, max_och_score=5.0)
+        result = await get_safe_responders(1226, max_och_score=5.0, ctx=ctx)
 
         assert result["total_safe"] == 0
         assert result["users"] == []
@@ -470,7 +470,7 @@ class TestGetSafeResponders:
         from oncallhealth_mcp.server import get_safe_responders
 
         ctx = MagicMock()
-        result = await get_safe_responders(ctx, 1226)
+        result = await get_safe_responders(1226, ctx=ctx)
 
         assert result["total_safe"] == 0
         assert result["users"] == []
@@ -508,7 +508,7 @@ class TestCheckUsersRisk:
 
         ctx = MagicMock()
         # Quentin (2381) = at risk, Alice (94178) = healthy, 27965 = not found
-        result = await check_users_risk(ctx, 1226, "2381,94178,27965")
+        result = await check_users_risk(1226, "2381,94178,27965", ctx=ctx)
 
         assert result["checked"] == 3
         assert result["found"] == 2
@@ -538,7 +538,7 @@ class TestCheckUsersRisk:
 
         ctx = MagicMock()
         # Alice (94178) has score 12.3 and risk_level low, should be healthy
-        result = await check_users_risk(ctx, 1226, "94178", min_och_score=60.0)
+        result = await check_users_risk(1226, "94178", min_och_score=60.0, ctx=ctx)
 
         assert result["checked"] == 1
         assert result["found"] == 1
@@ -559,7 +559,7 @@ class TestCheckUsersRisk:
         ctx = MagicMock()
         # Bob has score 55.0 and risk_level medium
         # Even with high threshold (70), should be at_risk due to risk_level
-        result = await check_users_risk(ctx, 1226, "1234", min_och_score=70.0)
+        result = await check_users_risk(1226, "1234", min_och_score=70.0, ctx=ctx)
 
         assert result["checked"] == 1
         assert len(result["at_risk"]) == 1
@@ -577,7 +577,7 @@ class TestCheckUsersRisk:
 
         ctx = MagicMock()
         # Bob has score 55.0, threshold exactly 55.0 should mark as at_risk (>=)
-        result = await check_users_risk(ctx, 1226, "1234", min_och_score=55.0)
+        result = await check_users_risk(1226, "1234", min_och_score=55.0, ctx=ctx)
 
         assert result["checked"] == 1
         assert len(result["at_risk"]) == 1
@@ -596,7 +596,7 @@ class TestCheckUsersRisk:
         ctx = MagicMock()
 
         with pytest.raises(ValueError, match="Invalid rootly_user_id"):
-            await check_users_risk(ctx, 1226, "abc,123")
+            await check_users_risk(1226, "abc,123", ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     async def test_check_users_risk_empty_ids(self, mock_extract):
@@ -608,7 +608,7 @@ class TestCheckUsersRisk:
         ctx = MagicMock()
 
         with pytest.raises(ValueError, match="rootly_user_ids cannot be empty"):
-            await check_users_risk(ctx, 1226, "")
+            await check_users_risk(1226, "", ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
@@ -624,15 +624,15 @@ class TestCheckUsersRisk:
 
         # Test overflow (> max 64-bit int)
         with pytest.raises(ValueError, match="Invalid rootly_user_id"):
-            await check_users_risk(ctx, 1226, "99999999999999999999999999999")
+            await check_users_risk(1226, "99999999999999999999999999999", ctx=ctx)
 
         # Test negative ID
         with pytest.raises(ValueError, match="Invalid rootly_user_id"):
-            await check_users_risk(ctx, 1226, "-1")
+            await check_users_risk(1226, "-1", ctx=ctx)
 
         # Test zero ID
         with pytest.raises(ValueError, match="Invalid rootly_user_id"):
-            await check_users_risk(ctx, 1226, "0")
+            await check_users_risk(1226, "0", ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     @patch("oncallhealth_mcp.server.OnCallHealthClient")
@@ -645,7 +645,7 @@ class TestCheckUsersRisk:
         from oncallhealth_mcp.server import check_users_risk
 
         ctx = MagicMock()
-        result = await check_users_risk(ctx, 1226, "99999,88888")
+        result = await check_users_risk(1226, "99999,88888", ctx=ctx)
 
         assert result["checked"] == 2
         assert result["found"] == 0
@@ -677,7 +677,7 @@ class TestCheckUsersRisk:
         from oncallhealth_mcp.server import check_users_risk
 
         ctx = MagicMock()
-        result = await check_users_risk(ctx, 1226, "2381,1234")
+        result = await check_users_risk(1226, "2381,1234", ctx=ctx)
 
         assert result["checked"] == 2
         assert result["found"] == 0
@@ -703,17 +703,17 @@ class TestValidationErrors:
 
         # Test all tools reject zero
         with pytest.raises(ValueError, match="analysis_id must be positive"):
-            await get_at_risk_users(ctx, 0)
+            await get_at_risk_users(0, ctx=ctx)
 
         with pytest.raises(ValueError, match="analysis_id must be positive"):
-            await get_safe_responders(ctx, 0)
+            await get_safe_responders(0, ctx=ctx)
 
         with pytest.raises(ValueError, match="analysis_id must be positive"):
-            await check_users_risk(ctx, 0, "123")
+            await check_users_risk(0, "123", ctx=ctx)
 
         # Test all tools reject negative
         with pytest.raises(ValueError, match="analysis_id must be positive"):
-            await get_at_risk_users(ctx, -1)
+            await get_at_risk_users(-1, ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     async def test_tools_reject_missing_api_key(self, mock_extract):
@@ -728,13 +728,13 @@ class TestValidationErrors:
         )
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await get_at_risk_users(ctx, 1226)
+            await get_at_risk_users(1226, ctx=ctx)
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await get_safe_responders(ctx, 1226)
+            await get_safe_responders(1226, ctx=ctx)
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await check_users_risk(ctx, 1226, "123")
+            await check_users_risk(1226, "123", ctx=ctx)
 
 
 class TestValidateIntegrations:
@@ -765,7 +765,7 @@ class TestValidateIntegrations:
         from oncallhealth_mcp.server import validate_integrations
 
         ctx = MagicMock()
-        result = await validate_integrations(ctx)
+        result = await validate_integrations(ctx=ctx)
 
         assert result["all_valid"] is True
         assert result["integrations"]["github"]["valid"] is True
@@ -785,7 +785,7 @@ class TestValidateIntegrations:
         from oncallhealth_mcp.server import validate_integrations
 
         ctx = MagicMock()
-        result = await validate_integrations(ctx)
+        result = await validate_integrations(ctx=ctx)
 
         assert result["all_valid"] is False
         assert result["integrations"]["jira"]["valid"] is False
@@ -802,7 +802,7 @@ class TestValidateIntegrations:
         from oncallhealth_mcp.server import validate_integrations
 
         ctx = MagicMock()
-        await validate_integrations(ctx, force_refresh=True)
+        await validate_integrations(force_refresh=True, ctx=ctx)
 
         # Verify force_refresh was passed as query param
         mock_client.get.assert_called_once()
@@ -817,7 +817,7 @@ class TestValidateIntegrations:
         from oncallhealth_mcp.server import validate_integrations
 
         with pytest.raises(PermissionError, match="Missing API key"):
-            await validate_integrations(ctx)
+            await validate_integrations(ctx=ctx)
 
 
 class TestOncallUsers:
@@ -847,7 +847,7 @@ class TestOncallUsers:
         from oncallhealth_mcp.server import oncall_users
 
         ctx = MagicMock()
-        result = await oncall_users(ctx, integration_id=1)
+        result = await oncall_users(integration_id=1, ctx=ctx)
 
         assert result["total_oncall"] == 2
         assert len(result["oncall_emails"]) == 2
@@ -866,7 +866,7 @@ class TestOncallUsers:
         from oncallhealth_mcp.server import oncall_users
 
         ctx = MagicMock()
-        result = await oncall_users(ctx, integration_id=1)
+        result = await oncall_users(integration_id=1, ctx=ctx)
 
         assert result["total_oncall"] == 0
         assert result["oncall_emails"] == []
@@ -885,7 +885,7 @@ class TestOncallUsers:
 
         ctx = MagicMock()
         with pytest.raises(LookupError, match="Integration not found"):
-            await oncall_users(ctx, integration_id=999)
+            await oncall_users(integration_id=999, ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     async def test_rejects_invalid_id(self, mock_extract):
@@ -895,10 +895,10 @@ class TestOncallUsers:
         from oncallhealth_mcp.server import oncall_users
 
         with pytest.raises(ValueError, match="integration_id must be positive"):
-            await oncall_users(ctx, integration_id=0)
+            await oncall_users(integration_id=0, ctx=ctx)
 
         with pytest.raises(ValueError, match="integration_id must be positive"):
-            await oncall_users(ctx, integration_id=-1)
+            await oncall_users(integration_id=-1, ctx=ctx)
 
 
 class TestMemberDailyHealth:
@@ -952,7 +952,7 @@ class TestMemberDailyHealth:
         from oncallhealth_mcp.server import member_daily_health
 
         ctx = MagicMock()
-        result = await member_daily_health(ctx, 1226, "alice@example.com")
+        result = await member_daily_health(1226, "alice@example.com", ctx=ctx)
 
         assert result["member_email"] == "alice@example.com"
         assert result["member_name"] == "Alice Johnson"
@@ -974,7 +974,7 @@ class TestMemberDailyHealth:
 
         ctx = MagicMock()
         with pytest.raises(LookupError, match="Member not found"):
-            await member_daily_health(ctx, 1226, "nonexistent@example.com")
+            await member_daily_health(1226, "nonexistent@example.com", ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     async def test_rejects_empty_email(self, mock_extract):
@@ -984,10 +984,10 @@ class TestMemberDailyHealth:
         from oncallhealth_mcp.server import member_daily_health
 
         with pytest.raises(ValueError, match="member_email cannot be empty"):
-            await member_daily_health(ctx, 1226, "")
+            await member_daily_health(1226, "", ctx=ctx)
 
         with pytest.raises(ValueError, match="member_email cannot be empty"):
-            await member_daily_health(ctx, 1226, "   ")
+            await member_daily_health(1226, "   ", ctx=ctx)
 
     @patch("oncallhealth_mcp.server.extract_api_key_header")
     async def test_rejects_invalid_analysis_id(self, mock_extract):
@@ -997,4 +997,4 @@ class TestMemberDailyHealth:
         from oncallhealth_mcp.server import member_daily_health
 
         with pytest.raises(ValueError, match="analysis_id must be positive"):
-            await member_daily_health(ctx, 0, "alice@example.com")
+            await member_daily_health(0, "alice@example.com", ctx=ctx)

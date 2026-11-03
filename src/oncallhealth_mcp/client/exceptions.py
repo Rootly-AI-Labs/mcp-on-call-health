@@ -6,7 +6,6 @@ HTTP response status codes to appropriate MCP exceptions.
 """
 
 from enum import Enum
-from typing import Optional
 
 import httpx
 
@@ -59,7 +58,7 @@ class RateLimitError(MCPError):
         retry_after: Seconds to wait before retrying (from Retry-After header)
     """
 
-    def __init__(self, retry_after: Optional[int] = None):
+    def __init__(self, retry_after: int | None = None):
         message = "Rate limit exceeded"
         if retry_after is not None:
             message += f". Retry after {retry_after} seconds"

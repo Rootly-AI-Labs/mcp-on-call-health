@@ -9,9 +9,8 @@ automatic recovery via half-open state.
 import logging
 from datetime import timedelta
 
-from aiobreaker import CircuitBreaker, CircuitBreakerListener
-
 import httpx
+from aiobreaker import CircuitBreaker, CircuitBreakerListener
 
 logger = logging.getLogger(__name__)
 

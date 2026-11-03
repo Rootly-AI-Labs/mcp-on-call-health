@@ -1,139 +1,70 @@
-"""Starlette middleware combining connection tracking and rate limiting.
+"""Starlette middleware applying per-API-key rate limits to MCP tool calls.
 
-This middleware protects the MCP endpoint from resource exhaustion by:
-1. Limiting concurrent connections per API key
-2. Rate limiting tool invocations per API key
-
-Applied to mcp_http_app before CORS middleware.
+The protocol is stateless, so the middleware keys limits on the API key
+presented with each request (``Authorization: Bearer`` or ``X-API-Key``) and
+identifies the tool from the JSON-RPC body, which is what gets executed for
+every protocol revision (routing headers alone are not trusted).
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
-import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import Response
 
-from .connection_tracker import (
-    connection_tracker,
-    MAX_CONNECTIONS_PER_KEY,
-)
-from .rate_limiter import (
-    check_rate_limit,
-    extract_tool_name,
-    MCP_RATE_LIMITS,
-)
-from .logging import (
-    log_connection_open,
-    log_connection_close,
-    log_connection_limit_hit,
-    log_rate_limit_hit,
-)
+from .logging import log_rate_limit_hit
+from .rate_limiter import MCP_RATE_LIMITS, check_rate_limit, extract_tool_name
 
 logger = logging.getLogger(__name__)
 
 
 def _hash_api_key(api_key: str) -> int:
-    """Hash API key to a stable integer for connection tracking.
+    """Hash API key to a stable integer for rate limiting and logs.
 
-    Uses first 8 bytes of SHA-256 as a stable numeric ID.
-
-    Args:
-        api_key: The full API key string
-
-    Returns:
-        Stable integer derived from API key hash
+    Uses the first 8 bytes of SHA-256 as a stable numeric ID.
     """
     digest = hashlib.sha256(api_key.encode()).digest()
     return int.from_bytes(digest[:8], byteorder="big")
 
 
+def _request_api_key(request: Request) -> str | None:
+    """API key from the Authorization bearer token or the X-API-Key header."""
+    authorization = request.headers.get("authorization") or ""
+    parts = authorization.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer" and parts[1].strip():
+        return parts[1].strip()
+    api_key = request.headers.get("x-api-key")
+    return api_key.strip() if api_key and api_key.strip() else None
+
+
 class MCPInfrastructureMiddleware(BaseHTTPMiddleware):
-    """Middleware for MCP connection limits and rate limiting.
+    """Rate-limit MCP tool invocations per API key.
 
-    Applies infrastructure safeguards to MCP endpoints:
-    - Connection limit: Max concurrent connections per API key
-    - Rate limit: Per-tool request limits based on resource consumption
-
-    Health check endpoint is exempt from all limits.
+    Requests without an API key pass through: FastMCP's auth layer rejects
+    them. The health check endpoint is exempt.
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        """Process request with infrastructure checks.
-
-        Args:
-            request: Starlette request object
-            call_next: Next middleware/handler in chain
-
-        Returns:
-            Response from handler or 429 error if limits exceeded
-        """
-        # Skip health check - must always be available for ALB
         if request.url.path.endswith("/health"):
             return await call_next(request)
 
-        # Extract API key from header
-        api_key = request.headers.get("X-API-Key")
+        api_key = _request_api_key(request)
         if not api_key:
-            # No API key - pass through, auth middleware handles rejection
             return await call_next(request)
 
-        # Derive stable numeric ID from API key for tracking
-        api_key_id = _hash_api_key(api_key)
+        # Starlette replays the cached body to the downstream app.
+        request.state._cached_body = await request.body()
 
-        # Generate unique connection ID for this request
-        connection_id = f"{api_key_id}:{uuid.uuid4().hex[:8]}"
+        tool_name = extract_tool_name(request)
+        if tool_name:
+            api_key_id = _hash_api_key(api_key)
+            rate_limit_response = await check_rate_limit(request, api_key_id, tool_name)
+            if rate_limit_response is not None:
+                limit = MCP_RATE_LIMITS.get(tool_name, MCP_RATE_LIMITS["default"])
+                log_rate_limit_hit(api_key_id, tool_name, limit)
+                return rate_limit_response
 
-        # Check connection limit
-        can_connect = await connection_tracker.add_connection(api_key_id, connection_id)
-        if not can_connect:
-            log_connection_limit_hit(api_key_id)
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "connection_limit_exceeded",
-                    "detail": f"Maximum concurrent connections reached ({MAX_CONNECTIONS_PER_KEY}). Close idle connections and retry.",
-                    "retry_after": 60,
-                },
-                headers={"Retry-After": "60"},
-            )
-
-        # Log successful connection open
-        log_connection_open(api_key_id, connection_id)
-
-        try:
-            # Cache request body for rate limit extraction
-            # This allows extract_tool_name to access the body
-            body = await request.body()
-            request.state._cached_body = body
-
-            # Extract tool name and check rate limit (only for tool calls)
-            tool_name = extract_tool_name(request)
-            if tool_name:
-                rate_limit_response = await check_rate_limit(
-                    request, api_key_id, tool_name
-                )
-                if rate_limit_response is not None:
-                    # Log rate limit violation
-                    limit = MCP_RATE_LIMITS.get(tool_name, MCP_RATE_LIMITS["default"])
-                    log_rate_limit_hit(api_key_id, tool_name, limit)
-                    return rate_limit_response
-
-            # Update activity timestamp
-            await connection_tracker.update_activity(connection_id)
-
-            # Process the request
-            response = await call_next(request)
-
-            # Update activity timestamp on successful completion
-            await connection_tracker.update_activity(connection_id)
-
-            return response
-
-        finally:
-            # Always clean up connection on request completion
-            await connection_tracker.remove_connection(api_key_id, connection_id)
-            log_connection_close(api_key_id, connection_id)
+        return await call_next(request)

@@ -14,7 +14,7 @@ Features:
 
 import logging
 import time
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from aiobreaker import CircuitBreakerError
@@ -70,7 +70,7 @@ class OnCallHealthClient:
     def __init__(
         self,
         api_key: str,
-        config: Optional[ClientConfig] = None,
+        config: ClientConfig | None = None,
     ):
         """Initialize the client.
 
@@ -80,7 +80,7 @@ class OnCallHealthClient:
         """
         self.api_key = api_key
         self.config = config or ClientConfig.from_env()
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
         self._created_at: float = 0
 
         # Create circuit breaker with configured settings
@@ -91,7 +91,7 @@ class OnCallHealthClient:
         )
 
         # Health monitor (started explicitly)
-        self._health_monitor: Optional["ConnectionPoolMonitor"] = None
+        self._health_monitor: ConnectionPoolMonitor | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the HTTP client with health check.
@@ -218,7 +218,7 @@ class OnCallHealthClient:
             raise CircuitBreakerOpenError(
                 self._circuit_breaker.name,
                 e.time_remaining,
-            )
+            ) from e
 
     async def get(self, path: str, **kwargs: Any) -> httpx.Response:
         """Make GET request.
@@ -318,9 +318,9 @@ class OnCallHealthClient:
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: Any | None,
     ) -> None:
         """Async context manager exit - ensures client is closed."""
         await self.close()

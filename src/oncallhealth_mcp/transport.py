@@ -1,46 +1,48 @@
-"""MCP transport layer with Streamable HTTP and SSE endpoints.
+"""Streamable HTTP transport for hosted deployments.
 
-This module creates an ASGI application that exposes the MCP server via:
-- /mcp: Streamable HTTP transport (modern MCP clients)
-- /sse: Server-Sent Events transport (legacy backward compatibility)
-- /health: Health check endpoint for AWS ALB integration
+Exposes the MCP server over the Streamable HTTP transport defined by MCP
+2026-07-28 (stateless, no protocol sessions, ``Mcp-Method``/``Mcp-Name``
+routing headers). FastMCP negotiates the protocol per connection, so clients
+on the 2025-xx handshake-era revisions keep working. The legacy HTTP+SSE
+transport is not served: it is deprecated by the specification.
 
-Stateless mode is enabled for horizontal scaling behind load balancers.
+Routes:
+- ``/mcp``: MCP endpoint
+- ``/health``: unauthenticated health check for load balancers
 
-CORS is configured for web-based MCP clients (MCP Inspector, browser tools).
-SSE heartbeat interval prevents proxy timeouts on long-lived connections.
+Authentication: every MCP request must carry ``Authorization: Bearer <key>``
+with an On-Call Health API key, verified by
+:class:`~oncallhealth_mcp.auth.OnCallHealthKeyVerifier`. ``X-API-Key`` is
+accepted for backward compatibility and rewritten into a bearer token.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+import os
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-# SSE heartbeat interval (seconds) - prevents proxy timeout
-# ALB default idle timeout is 60s, most proxies are 30-120s
-# 30s keeps connections alive without excessive overhead
-#
-# Note: FastMCP's SSE transport doesn't expose ping_interval configuration.
-# For Streamable HTTP (stateless mode), heartbeat is less critical since
-# each request is independent. SSE long-polling is where heartbeat matters.
-#
-# Custom heartbeat implementation options:
-# 1. SSE comment format: ": heartbeat\n\n" (transparent to MCP protocol)
-# 2. Use ALB idle timeout > 30s to avoid premature connection close
-# 3. Configure proxy keep-alive settings at infrastructure level
-#
-# Current approach: Rely on infrastructure-level keep-alive (Phase 9).
-# For production, configure ALB target group idle timeout to 120s.
-SSE_HEARTBEAT_INTERVAL = 30
+from oncallhealth_mcp.auth import API_KEY_HEADER, OnCallHealthKeyVerifier
+from oncallhealth_mcp.infrastructure import MCPInfrastructureMiddleware
+from oncallhealth_mcp.server import build_server
 
-# CORS configuration for web-based MCP clients
-# Note: Applied at transport level, not main app level (avoids FastMCP conflicts)
+logger = logging.getLogger(__name__)
+
+MCP_PATH = "/mcp"
+HEALTH_PATH = "/health"
+
+# Comma-separated host names (e.g. "mcp.oncallhealth.ai") that enable
+# FastMCP's Host/Origin DNS-rebinding guard for the MCP endpoint.
+ALLOWED_HOSTS_ENV = "ONCALLHEALTH_MCP_ALLOWED_HOSTS"
+
+# CORS configuration for browser-based MCP clients (MCP Inspector, web tools)
 MCP_CORS_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -52,106 +54,114 @@ MCP_CORS_ORIGINS = [
 
 MCP_CORS_HEADERS = [
     "mcp-protocol-version",
-    "mcp-session-id",
+    "mcp-method",
+    "mcp-name",
     "Authorization",
     "Content-Type",
-    "X-API-Key",  # Required for MCP API key authentication
+    API_KEY_HEADER,
 ]
 
+# GET/DELETE are only used by handshake-era clients; the 2026-07-28 transport is POST-only.
 MCP_CORS_METHODS = ["GET", "POST", "DELETE", "OPTIONS"]
-
-# Headers exposed to browser clients (mcp-session-id critical for session tracking)
-MCP_CORS_EXPOSE_HEADERS = ["mcp-session-id"]
 
 cors_middleware = Middleware(
     CORSMiddleware,
     allow_origins=MCP_CORS_ORIGINS,
     allow_methods=MCP_CORS_METHODS,
     allow_headers=MCP_CORS_HEADERS,
-    expose_headers=MCP_CORS_EXPOSE_HEADERS,
     allow_credentials=True,
 )
 
-if TYPE_CHECKING:
-    from starlette.requests import Request
 
-logger = logging.getLogger(__name__)
+class ApiKeyToBearerMiddleware:
+    """Rewrite ``X-API-Key: <key>`` into ``Authorization: Bearer <key>``.
 
-# Infrastructure middleware for connection/rate limiting
-# Only available when running with full backend (database access required)
-# Standalone Docker deployments skip this middleware
-infrastructure_middleware = None
-try:
-    from oncallhealth_mcp.infrastructure import MCPInfrastructureMiddleware
-
-    infrastructure_middleware = Middleware(MCPInfrastructureMiddleware)
-    logger.info("MCP infrastructure middleware enabled")
-except ImportError:
-    logger.warning(
-        "MCP infrastructure middleware disabled (standalone mode - "
-        "connection/rate limiting requires database)"
-    )
-
-
-async def health_check(request: "Request") -> JSONResponse:
-    """Health check endpoint for AWS ALB.
-
-    Returns 200 OK with service status. No authentication required.
-    ALB should be configured with:
-    - Path: /health
-    - HealthCheckIntervalSeconds: 30
-    - HealthyThresholdCount: 2
-    - UnhealthyThresholdCount: 2
+    Lets clients configured with the legacy header keep working with
+    FastMCP's bearer-token auth layer. An explicit Authorization header wins.
     """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            headers: list[tuple[bytes, bytes]] = list(scope.get("headers", []))
+            has_authorization = any(name == b"authorization" for name, _ in headers)
+            api_key = next(
+                (
+                    value.strip()
+                    for name, value in headers
+                    if name == API_KEY_HEADER.lower().encode()
+                ),
+                b"",
+            )
+            if api_key and not has_authorization:
+                headers.append((b"authorization", b"Bearer " + api_key))
+                scope = {**scope, "headers": headers}
+        await self.app(scope, receive, send)
+
+
+async def health_check(request: Request) -> JSONResponse:
+    """Health check endpoint for load balancers (no authentication)."""
     return JSONResponse({"status": "healthy", "service": "on-call-health-mcp"})
 
 
-def _create_mcp_http_app() -> Starlette:
-    """Create composite ASGI app with MCP transport endpoints.
+def allowed_hosts_from_env() -> list[str]:
+    """Host names from ONCALLHEALTH_MCP_ALLOWED_HOSTS, or [] when unset."""
+    raw = os.getenv(ALLOWED_HOSTS_ENV, "")
+    return [host.strip() for host in raw.split(",") if host.strip()]
 
-    Returns:
-        Starlette application with /health, /mcp, and /sse routes.
+
+def create_http_app(
+    *,
+    code_mode: bool | None = None,
+    verify_api_keys: bool = True,
+) -> Starlette:
+    """Build the ASGI application for the hosted MCP server.
+
+    Args:
+        code_mode: Expose the catalog through Code Mode meta-tools. Defaults to
+            the ONCALLHEALTH_CODE_MODE environment variable.
+        verify_api_keys: Require and verify a bearer API key on every MCP
+            request. Only disable for local experiments.
     """
-    # Import mcp_server locally to avoid circular imports
-    # and maintain lazy loading pattern from __init__.py
-    from oncallhealth_mcp.server import mcp_server
+    auth = OnCallHealthKeyVerifier() if verify_api_keys else None
+    server = build_server(code_mode=code_mode, auth=auth)
 
-    # Get HTTP app from FastMCP
-    # FastMCP provides streamable_http_app() for Streamable HTTP transport
-    if hasattr(mcp_server, "http_app"):
-        mcp_http = mcp_server.http_app()
-    elif hasattr(mcp_server, "streamable_http_app"):
-        mcp_http = mcp_server.streamable_http_app()
-    elif hasattr(mcp_server, "sse_app"):
-        mcp_http = mcp_server.sse_app()
-    else:
-        raise RuntimeError("FastMCP version does not support HTTP transport")
-
-    # Create wrapper app with health endpoint and middleware
-    # IMPORTANT: Must pass lifespan from mcp_http to ensure FastMCP's StreamableHTTPSessionManager initializes
-    # Build middleware list - order matters: infrastructure first, then CORS
-    middleware_list = []
-    if infrastructure_middleware is not None:
-        middleware_list.append(infrastructure_middleware)
-    middleware_list.append(cors_middleware)
-
-    # Create new Starlette app with health endpoint and MCP app mounted
-    app = Starlette(
-        routes=[
-            Route("/health", health_check, methods=["GET"]),
-            Mount("/", mcp_http),  # Mount MCP app at root to handle all MCP routes
-        ],
-        middleware=middleware_list,
-        lifespan=getattr(
-            mcp_http, "lifespan", None
-        ),  # Use FastMCP's lifespan if available
+    allowed_hosts = allowed_hosts_from_env()
+    mcp_http = server.http_app(
+        path=MCP_PATH,
+        stateless_http=True,
+        host_origin_protection=bool(allowed_hosts),
+        allowed_hosts=allowed_hosts or None,
+        allowed_origins=MCP_CORS_ORIGINS if allowed_hosts else None,
     )
 
-    logger.info("MCP transport initialized: /health, MCP HTTP endpoints")
+    app = Starlette(
+        routes=[
+            Route(HEALTH_PATH, health_check, methods=["GET"]),
+            Mount("/", mcp_http),
+        ],
+        # Outermost first: CORS answers preflights, then the X-API-Key shim,
+        # then per-key rate limiting, then FastMCP auth + MCP handling.
+        middleware=[
+            cors_middleware,
+            Middleware(ApiKeyToBearerMiddleware),
+            Middleware(MCPInfrastructureMiddleware),
+        ],
+        # Required so FastMCP's session manager starts with the parent app.
+        lifespan=mcp_http.lifespan,
+    )
 
+    logger.info(
+        "MCP HTTP transport initialized: %s (stateless), %s; auth=%s; host guard=%s",
+        MCP_PATH,
+        HEALTH_PATH,
+        "api-key" if verify_api_keys else "disabled",
+        allowed_hosts or "off",
+    )
     return app
 
 
-# Create the ASGI application
-# This is the main export for uvicorn
-mcp_http_app = _create_mcp_http_app()
+# ASGI entry point for uvicorn: `uvicorn oncallhealth_mcp.transport:mcp_http_app`
+mcp_http_app = create_http_app()

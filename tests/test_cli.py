@@ -66,6 +66,21 @@ class TestSetupLogging:
             mock_basic.assert_called_once()
             assert mock_basic.call_args[1]["level"] == logging.INFO
 
+    def test_quiets_fastmcp_and_noisy_loggers(self):
+        import fastmcp
+
+        with patch("oncallhealth_mcp.cli.logging.basicConfig"):
+            setup_logging(verbose=False)
+        assert fastmcp.settings.show_server_banner is False
+        assert fastmcp.settings.check_for_updates == "off"
+        assert logging.getLogger("docket").level == logging.WARNING
+
+    def test_verbose_keeps_noisy_loggers(self):
+        logging.getLogger("docket").setLevel(logging.NOTSET)
+        with patch("oncallhealth_mcp.cli.logging.basicConfig"):
+            setup_logging(verbose=True)
+        assert logging.getLogger("docket").level == logging.NOTSET
+
 
 class TestValidateConfig:
     """Test validate_config()."""

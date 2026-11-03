@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock
 
-
 from oncallhealth_mcp.client.exceptions import (
     AuthenticationError,
     MCPError,

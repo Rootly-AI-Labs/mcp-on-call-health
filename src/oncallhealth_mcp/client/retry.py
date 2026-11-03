@@ -6,7 +6,7 @@ to handle transient failures while preventing thundering herd.
 """
 
 import logging
-from typing import Callable, Tuple, Type
+from collections.abc import Callable
 
 import httpx
 from tenacity import (
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 # Network exceptions that warrant retry (transient failures)
-RETRYABLE_EXCEPTIONS: Tuple[Type[Exception], ...] = (
+RETRYABLE_EXCEPTIONS: tuple[type[Exception], ...] = (
     httpx.ConnectError,
     httpx.ConnectTimeout,
     httpx.ReadTimeout,
@@ -93,7 +93,9 @@ def create_retry_decorator(
     """
     return retry(
         stop=stop_after_attempt(max_retries + 1),  # 1 initial + max_retries
-        wait=wait_exponential_jitter(initial=initial_wait, max=max_wait, jitter=jitter),
+        wait=wait_exponential_jitter(
+            multiplier=initial_wait, max=max_wait, jitter=jitter
+        ),
         retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS + (RetriableHTTPError,)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,

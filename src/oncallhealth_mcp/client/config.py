@@ -55,6 +55,10 @@ class ClientConfig:
     circuit_breaker_fail_max: int = 5
     circuit_breaker_timeout_seconds: int = 30
 
+    # Polling for analysis_run (seconds between status checks, with backoff)
+    analysis_poll_interval: float = 5.0
+    analysis_poll_max_interval: float = 30.0
+
     @classmethod
     def from_env(cls) -> "ClientConfig":
         """Create ClientConfig from environment variables.
@@ -75,6 +79,8 @@ class ClientConfig:
             ONCALLHEALTH_RETRY_JITTER: Retry jitter seconds (default: 1.0)
             ONCALLHEALTH_CB_FAIL_MAX: Circuit breaker failure threshold (default: 5)
             ONCALLHEALTH_CB_TIMEOUT: Circuit breaker timeout seconds (default: 30)
+            ONCALLHEALTH_POLL_INTERVAL: analysis_run poll interval seconds (default: 5.0)
+            ONCALLHEALTH_POLL_MAX_INTERVAL: analysis_run max poll interval (default: 30.0)
 
         Returns:
             ClientConfig instance populated from environment
@@ -119,6 +125,10 @@ class ClientConfig:
             retry_jitter=safe_float("ONCALLHEALTH_RETRY_JITTER", "1.0"),
             circuit_breaker_fail_max=safe_int("ONCALLHEALTH_CB_FAIL_MAX", "5"),
             circuit_breaker_timeout_seconds=safe_int("ONCALLHEALTH_CB_TIMEOUT", "30"),
+            analysis_poll_interval=safe_float("ONCALLHEALTH_POLL_INTERVAL", "5.0"),
+            analysis_poll_max_interval=safe_float(
+                "ONCALLHEALTH_POLL_MAX_INTERVAL", "30.0"
+            ),
         )
 
     def to_httpx_timeout(self) -> httpx.Timeout:

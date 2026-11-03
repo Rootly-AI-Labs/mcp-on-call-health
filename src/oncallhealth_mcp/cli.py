@@ -8,6 +8,8 @@ import os
 import sys
 from typing import NoReturn
 
+from oncallhealth_mcp import __version__
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -33,6 +35,16 @@ def parse_args() -> argparse.Namespace:
         help="Port to bind to (http transport only, default: 8000)",
     )
     parser.add_argument(
+        "--code-mode",
+        action="store_true",
+        default=None,
+        help=(
+            "Expose the catalog through FastMCP Code Mode meta-tools "
+            "(search/get_schema/execute) instead of the 13 tools directly. "
+            "Also enabled by ONCALLHEALTH_CODE_MODE=1."
+        ),
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -41,18 +53,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 0.3.0",
+        version=f"%(prog)s {__version__}",
     )
     return parser.parse_args()
 
 
+# Third-party loggers that are chatty at INFO (task worker, HTTP client).
+_NOISY_LOGGERS = ("docket", "httpx2", "httpcore2")
+
+
 def setup_logging(verbose: bool = False) -> None:
-    """Configure logging for the server."""
+    """Configure logging for the server.
+
+    Logs go to stderr (stdout is the MCP stdio channel). FastMCP's startup
+    banner and PyPI update check are disabled so a stdio launch stays quiet
+    and offline.
+    """
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    if not verbose:
+        for name in _NOISY_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
+
+    import fastmcp
+
+    fastmcp.settings.show_server_banner = False
+    fastmcp.settings.check_for_updates = "off"
 
 
 def validate_config() -> None:
@@ -77,14 +106,19 @@ def main() -> NoReturn:
     validate_config()
 
     # Import server lazily to avoid import errors before validation
-    from oncallhealth_mcp.server import mcp_server
+    from oncallhealth_mcp.server import build_server, code_mode_from_env
+
+    code_mode = args.code_mode if args.code_mode is not None else code_mode_from_env()
 
     logger = logging.getLogger(__name__)
-    logger.info(f"Starting On-Call Health MCP server (transport={args.transport})")
+    logger.info(
+        f"Starting On-Call Health MCP server "
+        f"(transport={args.transport}, code_mode={code_mode})"
+    )
 
     if args.transport == "stdio":
         # Run with stdio transport
-        mcp_server.run()
+        build_server(code_mode=code_mode).run()
     else:
         # Run with HTTP transport using uvicorn
         try:
@@ -97,8 +131,11 @@ def main() -> NoReturn:
             )
             sys.exit(1)
 
-        # Get ASGI app from FastMCP
-        app = mcp_server.http_app()
+        # Full hosted app: /mcp (stateless Streamable HTTP, bearer API keys,
+        # rate limiting) plus /health
+        from oncallhealth_mcp.transport import create_http_app
+
+        app = create_http_app(code_mode=code_mode)
         uvicorn.run(app, host=args.host, port=args.port)
 
     sys.exit(0)

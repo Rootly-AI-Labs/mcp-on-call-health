@@ -1,7 +1,8 @@
 """Pytest fixtures for MCP server tests."""
 
+from typing import Any
+
 import pytest
-from typing import Any, Dict
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +40,7 @@ def mock_context_no_key():
 
 
 @pytest.fixture
-def sample_analysis_response() -> Dict[str, Any]:
+def sample_analysis_response() -> dict[str, Any]:
     """Sample API response for analysis endpoint."""
     return {
         "id": 1226,
@@ -104,7 +105,7 @@ def sample_analysis_response() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_analysis_summary_response() -> Dict[str, Any]:
+def sample_analysis_summary_response() -> dict[str, Any]:
     """Sample API response for analysis summary."""
     return {
         "id": 1226,

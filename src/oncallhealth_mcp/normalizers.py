@@ -6,10 +6,10 @@ ensuring backward compatibility for MCP clients.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def serialize_datetime(value: Any) -> Optional[str]:
+def serialize_datetime(value: Any) -> str | None:
     """Convert datetime to ISO string format.
 
     Handles various input types:
@@ -35,7 +35,7 @@ def serialize_datetime(value: Any) -> Optional[str]:
         return str(value)
 
 
-def normalize_analysis_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_analysis_response(rest_data: dict[str, Any]) -> dict[str, Any]:
     """Transform REST API AnalysisResponse to MCP tool contract.
 
     Maps REST API response fields to match the existing MCP analysis_status
@@ -54,7 +54,7 @@ def normalize_analysis_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
         - error: str (optional, only if present)
         - results_summary: dict (optional, only if completed with results)
     """
-    normalized: Dict[str, Any] = {
+    normalized: dict[str, Any] = {
         "id": rest_data["id"],
         "status": rest_data["status"],
         "created_at": serialize_datetime(rest_data.get("created_at")),
@@ -97,10 +97,10 @@ def normalize_analysis_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def normalize_analysis_start_response(
-    rest_data: Dict[str, Any],
+    rest_data: dict[str, Any],
     integration_name: str,
     days_back: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Transform POST /analyses/run response to MCP analysis_start contract.
 
     Args:
@@ -124,7 +124,7 @@ def normalize_analysis_start_response(
     }
 
 
-def normalize_rootly_integration(rest_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_rootly_integration(rest_data: dict[str, Any]) -> dict[str, Any]:
     """Transform /rootly/integrations response item to MCP format.
 
     Args:
@@ -146,7 +146,7 @@ def normalize_rootly_integration(rest_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def normalize_github_status(rest_data: Optional[Dict[str, Any]]) -> list:
+def normalize_github_status(rest_data: dict[str, Any] | None) -> list:
     """Transform /integrations/github/status response to MCP format.
 
     REST returns single status object if connected, empty/null if not.
@@ -174,7 +174,7 @@ def normalize_github_status(rest_data: Optional[Dict[str, Any]]) -> list:
     ]
 
 
-def normalize_slack_status(rest_data: Optional[Dict[str, Any]]) -> list:
+def normalize_slack_status(rest_data: dict[str, Any] | None) -> list:
     """Transform /integrations/slack/status response to MCP format.
 
     Args:
@@ -200,7 +200,7 @@ def normalize_slack_status(rest_data: Optional[Dict[str, Any]]) -> list:
     ]
 
 
-def normalize_jira_status(rest_data: Optional[Dict[str, Any]]) -> list:
+def normalize_jira_status(rest_data: dict[str, Any] | None) -> list:
     """Transform /integrations/jira/status response to MCP format.
 
     Args:
@@ -226,7 +226,7 @@ def normalize_jira_status(rest_data: Optional[Dict[str, Any]]) -> list:
     ]
 
 
-def normalize_linear_status(rest_data: Optional[Dict[str, Any]]) -> list:
+def normalize_linear_status(rest_data: dict[str, Any] | None) -> list:
     """Transform /integrations/linear/status response to MCP format.
 
     Args:
@@ -252,7 +252,7 @@ def normalize_linear_status(rest_data: Optional[Dict[str, Any]]) -> list:
     ]
 
 
-def normalize_oncall_users(rest_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_oncall_users(rest_data: dict[str, Any]) -> dict[str, Any]:
     """Transform /rootly/integrations/{id}/oncall-users response to MCP format.
 
     Args:
@@ -269,7 +269,7 @@ def normalize_oncall_users(rest_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def normalize_validation_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_validation_response(rest_data: dict[str, Any]) -> dict[str, Any]:
     """Transform /analyses/validate-integrations response to MCP format.
 
     Args:
@@ -294,7 +294,7 @@ def normalize_validation_response(rest_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def normalize_member_daily_health(rest_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_member_daily_health(rest_data: dict[str, Any]) -> dict[str, Any]:
     """Transform /analyses/{id}/members/{email}/daily-health response to MCP format.
 
     Condenses detailed daily health data to key fields to avoid context overflow.

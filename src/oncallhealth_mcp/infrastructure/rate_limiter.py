@@ -11,11 +11,11 @@ Uses a simple in-memory sliding window counter.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import time
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -27,15 +27,20 @@ logger = logging.getLogger(__name__)
 MCP_RATE_LIMITS = {
     # Expensive operations (creates background job, queries multiple APIs)
     "analysis_start": "5/minute",
+    "analysis_run": "5/minute",
     "integrations_list": "20/minute",
     "validate_integrations": "10/minute",
     # Moderate operations (external API call)
     "oncall_users": "30/minute",
     "member_daily_health": "30/minute",
-    # Cheap operations (single DB query)
+    # Cheap operations (single fetch, usually served from the analysis cache)
     "analysis_status": "60/minute",
     "analysis_results": "60/minute",
+    "analysis_summary": "60/minute",
     "analysis_current": "30/minute",
+    "get_at_risk_users": "60/minute",
+    "get_safe_responders": "60/minute",
+    "check_users_risk": "60/minute",
     # Default fallback for unknown tools
     "default": "100/minute",
 }
@@ -43,8 +48,8 @@ MCP_RATE_LIMITS = {
 
 # Simple in-memory rate limit storage
 # Maps (key, window) -> count
-_rate_limit_store: Dict[Tuple[str, int], int] = defaultdict(int)
-_rate_limit_timestamps: Dict[Tuple[str, int], float] = {}
+_rate_limit_store: dict[tuple[str, int], int] = defaultdict(int)
+_rate_limit_timestamps: dict[tuple[str, int], float] = {}
 
 
 def _cleanup_old_windows(current_window: int, window_seconds: int) -> None:
@@ -70,22 +75,37 @@ def get_mcp_rate_limit_key(api_key_id: int, tool_name: str) -> str:
     return f"mcp:{api_key_id}:{tool_name}"
 
 
-def extract_tool_name(request: Request) -> Optional[str]:
-    """Extract tool name from MCP request body.
+_BASE64_PREFIX = "=?base64?"
+_BASE64_SUFFIX = "?="
 
-    MCP tools/call requests have the format:
-    {"method": "tools/call", "params": {"name": "tool_name", ...}}
 
-    Args:
-        request: Starlette request object
+def _decode_header_value(value: str) -> str:
+    """Decode the Base64 sentinel form of an MCP routing header value."""
+    if value.startswith(_BASE64_PREFIX) and value.endswith(_BASE64_SUFFIX):
+        encoded = value[len(_BASE64_PREFIX) : -len(_BASE64_SUFFIX)]
+        try:
+            return base64.b64decode(encoded, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return value
+    return value
+
+
+def extract_tool_name(request: Request) -> str | None:
+    """Extract the tool name of a ``tools/call`` request.
+
+    Reads the JSON-RPC body cached on ``request.state._cached_body``: the body
+    is what the server executes for every protocol revision, whereas the
+    ``Mcp-Method``/``Mcp-Name`` routing headers are only cross-checked against
+    the body on the 2026-07-28 path. Trusting the headers alone would let a
+    handshake-era ``tools/call`` body with a stray ``Mcp-Method: tools/list``
+    header skip the limit. The ``Mcp-Name`` header is used only when the body
+    names no tool.
 
     Returns:
         Tool name if this is a tool call, None otherwise
     """
-    # Body is read asynchronously, so we need to check if it's cached
-    # The body should be cached by the middleware before calling this
     body_bytes = getattr(request.state, "_cached_body", None)
-    if body_bytes is None:
+    if not body_bytes:
         return None
 
     try:
@@ -93,23 +113,21 @@ def extract_tool_name(request: Request) -> Optional[str]:
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None
 
-    # Check if this is an MCP tools/call request
-    method = body.get("method")
-    if method != "tools/call":
+    if not isinstance(body, dict) or body.get("method") != "tools/call":
         return None
 
-    # Extract tool name from params
     params = body.get("params", {})
-    tool_name = params.get("name")
+    tool_name = params.get("name") if isinstance(params, dict) else None
     if isinstance(tool_name, str):
         return tool_name
 
-    return None
+    name_header = request.headers.get("mcp-name")
+    return _decode_header_value(name_header) if name_header else None
 
 
 async def check_rate_limit(
     request: Request, api_key_id: int, tool_name: str
-) -> Optional[JSONResponse]:
+) -> JSONResponse | None:
     """Check rate limit for MCP tool invocation.
 
     Uses a simple in-memory sliding window counter.
@@ -128,7 +146,7 @@ async def check_rate_limit(
 
     # Parse the limit string (e.g., "5/minute" -> 5 requests per 60 seconds)
     try:
-        count_str, period = limit_str.split("/")
+        count_str, _period = limit_str.split("/")
         limit_count = int(count_str)
     except (ValueError, AttributeError):
         limit_count = 100  # Fallback

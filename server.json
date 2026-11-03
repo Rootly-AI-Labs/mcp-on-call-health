@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rootly-ai-labs/oncallhealth-mcp",
+  "title": "On-Call Health",
+  "description": "On-call burnout analysis: team risk summaries, at-risk responders, daily health trends.",
+  "repository": {
+    "url": "https://github.com/Rootly-AI-Labs/mcp-on-call-health",
+    "source": "github"
+  },
+  "websiteUrl": "https://oncallhealth.ai",
+  "version": "0.4.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "oncallhealth-mcp",
+      "version": "0.4.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ONCALLHEALTH_API_KEY",
+          "description": "On-Call Health API key from https://oncallhealth.ai/settings/api-keys",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

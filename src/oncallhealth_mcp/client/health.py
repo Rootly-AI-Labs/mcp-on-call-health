@@ -31,7 +31,7 @@ class ConnectionPoolMonitor:
 
     def __init__(
         self,
-        client: "OnCallHealthClient",
+        client: OnCallHealthClient,
         check_interval: int = 60,
     ):
         """Initialize the connection pool monitor.

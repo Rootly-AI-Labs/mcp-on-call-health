@@ -29,6 +29,8 @@ def clear_rate_limit_store():
 def _make_request(body: bytes = b"", cached: bool = True) -> MagicMock:
     """Create a mock Starlette request."""
     request = MagicMock()
+    request.headers = MagicMock()
+    request.headers.get = lambda k, default=None: default  # no routing headers
     request.state = MagicMock()
     if cached:
         request.state._cached_body = body
@@ -112,6 +114,73 @@ class TestExtractToolName:
         assert extract_tool_name(request) is None
 
 
+class TestExtractToolNameWithRoutingHeaders:
+    """The body is what executes, so headers never override it."""
+
+    @staticmethod
+    def _request(headers, body=None):
+        request = MagicMock()
+        lowered = {k.lower(): v for k, v in headers.items()}
+        request.headers = MagicMock()
+        request.headers.get = lambda k, default=None: lowered.get(k.lower(), default)
+        request.state._cached_body = body
+        return request
+
+    @staticmethod
+    def _body(method="tools/call", params=None):
+        return json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
+        ).encode()
+
+    def test_matching_headers_and_body(self):
+        request = self._request(
+            {"Mcp-Method": "tools/call", "Mcp-Name": "analysis_start"},
+            body=self._body(params={"name": "analysis_start"}),
+        )
+        assert extract_tool_name(request) == "analysis_start"
+
+    def test_legacy_tool_call_body_with_misleading_method_header(self):
+        request = self._request(
+            {"Mcp-Method": "tools/list"},
+            body=self._body(params={"name": "analysis_start"}),
+        )
+        assert extract_tool_name(request) == "analysis_start"
+
+    def test_body_name_wins_over_header_name(self):
+        request = self._request(
+            {"Mcp-Method": "tools/call", "Mcp-Name": "from_header"},
+            body=self._body(params={"name": "from_body"}),
+        )
+        assert extract_tool_name(request) == "from_body"
+
+    def test_headers_alone_without_body_are_not_trusted(self):
+        request = self._request(
+            {"Mcp-Method": "tools/call", "Mcp-Name": "analysis_start"}, body=b""
+        )
+        assert extract_tool_name(request) is None
+
+    def test_header_name_used_when_body_names_no_tool(self):
+        request = self._request(
+            {"Mcp-Method": "tools/call", "Mcp-Name": "=?base64?YW5hbHlzaXNfc3RhcnQ=?="},
+            body=self._body(params={"arguments": {}}),
+        )
+        assert extract_tool_name(request) == "analysis_start"
+
+    def test_invalid_base64_header_name_returned_verbatim(self):
+        request = self._request(
+            {"Mcp-Method": "tools/call", "Mcp-Name": "=?base64?***?="},
+            body=self._body(params={}),
+        )
+        assert extract_tool_name(request) == "=?base64?***?="
+
+    def test_non_tool_body_with_tool_call_header(self):
+        request = self._request(
+            {"Mcp-Method": "tools/call", "Mcp-Name": "analysis_start"},
+            body=self._body(method="tools/list"),
+        )
+        assert extract_tool_name(request) is None
+
+
 class TestCheckRateLimit:
     """Test check_rate_limit()."""
 
@@ -133,7 +202,7 @@ class TestCheckRateLimit:
     async def test_blocks_at_limit(self):
         """Should return 429 when limit is exceeded."""
         # analysis_start has 5/minute limit
-        for i in range(5):
+        for _i in range(5):
             request = _make_request()
             result = await check_rate_limit(request, 1, "analysis_start")
             assert result is None  # All 5 should pass
@@ -147,7 +216,7 @@ class TestCheckRateLimit:
     @pytest.mark.asyncio
     async def test_429_has_retry_after(self):
         """429 response should include Retry-After header."""
-        for i in range(5):
+        for _i in range(5):
             await check_rate_limit(_make_request(), 1, "analysis_start")
 
         result = await check_rate_limit(_make_request(), 1, "analysis_start")
@@ -157,7 +226,7 @@ class TestCheckRateLimit:
     @pytest.mark.asyncio
     async def test_different_keys_independent(self):
         """Different API keys have independent limits."""
-        for i in range(5):
+        for _i in range(5):
             await check_rate_limit(_make_request(), 1, "analysis_start")
 
         # Key 2 should still be allowed
@@ -167,7 +236,7 @@ class TestCheckRateLimit:
     @pytest.mark.asyncio
     async def test_different_tools_independent(self):
         """Different tools have independent limits."""
-        for i in range(5):
+        for _i in range(5):
             await check_rate_limit(_make_request(), 1, "analysis_start")
 
         # Different tool should still be allowed
@@ -180,7 +249,7 @@ class TestCheckRateLimit:
         # Freeze time to avoid minute-boundary flakiness
         with patch("oncallhealth_mcp.infrastructure.rate_limiter.time") as mock_time:
             mock_time.time.return_value = 1000.0
-            for i in range(100):
+            for _i in range(100):
                 request = _make_request()
                 result = await check_rate_limit(request, 1, "unknown_tool")
                 assert result is None

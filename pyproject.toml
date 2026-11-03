@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oncallhealth-mcp"
-version = "0.3.0"
+version = "0.4.0"
 description = "MCP server for On-Call Health burnout analysis"
 readme = "README.md"
 license = "Apache-2.0"
@@ -26,17 +26,17 @@ classifiers = [
 ]
 keywords = ["mcp", "on-call", "health", "burnout", "analysis"]
 dependencies = [
-    "fastmcp[code-mode]>=3.1.0",
+    "fastmcp[code-mode,tasks]>=4.1.5,<5",
     "httpx>=0.28.0",
     "tenacity>=9.0.0",
     "aiobreaker>=1.2.0",
-    "pydantic>=2.0.0",
+    "pydantic>=2.12.0",
 ]
 
 [project.urls]
 Homepage = "https://oncallhealth.ai"
-Repository = "https://github.com/Rootly-AI-Labs/MCP-On-Call-Health"
-Issues = "https://github.com/Rootly-AI-Labs/MCP-On-Call-Health/issues"
+Repository = "https://github.com/Rootly-AI-Labs/mcp-on-call-health"
+Issues = "https://github.com/Rootly-AI-Labs/mcp-on-call-health/issues"
 Documentation = "https://oncallhealth.ai/docs/mcp"
 
 [project.scripts]
@@ -44,8 +44,8 @@ oncallhealth-mcp = "oncallhealth_mcp.cli:main"
 
 [project.optional-dependencies]
 server = [
-    "uvicorn[standard]",
-    "starlette",
+    "uvicorn[standard]>=0.30.0",
+    "starlette>=1.0.1",
 ]
 test = [
     "pytest>=8.0.0",
@@ -55,11 +55,36 @@ test = [
     "respx>=0.21.0",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.17.1",
+    "mypy>=2.4.0",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/oncallhealth_mcp"]
 
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+# B008: FastMCP injects dependencies through call defaults (CurrentContext(), Progress())
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/oncallhealth_mcp"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

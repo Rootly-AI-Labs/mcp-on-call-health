@@ -6,40 +6,56 @@ Tests verify that the refactored analysis tools correctly:
 3. Handle errors appropriately (mapping to correct exception types)
 """
 
-import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-import httpx
 
-from oncallhealth_mcp.server import (
-    analysis_status,
-    analysis_results,
-    analysis_current,
-    analysis_start,
-    integrations_list,
-)
+import httpx
+import pytest
+
 from oncallhealth_mcp.client import NotFoundError
 from oncallhealth_mcp.normalizers import (
-    normalize_rootly_integration,
     normalize_github_status,
-    normalize_slack_status,
     normalize_jira_status,
     normalize_linear_status,
+    normalize_rootly_integration,
+    normalize_slack_status,
+)
+from oncallhealth_mcp.server import (
+    analysis_current,
+    analysis_results,
+    analysis_start,
+    analysis_status,
+    integrations_list,
 )
 
 
 def _mock_ctx_with_api_key(api_key: str = "och_live_test123"):
-    """Create mock MCP context with API key header."""
+    """Create a duck-typed context carrying an API key for these tests."""
     ctx = SimpleNamespace()
     ctx.request_headers = {"X-API-Key": api_key}
     return ctx
 
 
 def _mock_ctx_without_api_key():
-    """Create mock MCP context without API key header."""
+    """Create a duck-typed context without an API key."""
     ctx = SimpleNamespace()
     ctx.request_headers = {}
     return ctx
+
+
+@pytest.fixture(autouse=True)
+def _api_key_from_ctx(monkeypatch):
+    """Resolve the API key from the duck-typed test context.
+
+    Production resolution (verified bearer token, HTTP headers, env var) is
+    covered in tests/test_auth.py; these tests exercise the REST contract.
+    """
+
+    def _from_ctx(ctx=None):
+        headers = getattr(ctx, "request_headers", None) or {}
+        return headers.get("X-API-Key")
+
+    monkeypatch.setattr("oncallhealth_mcp.server.extract_api_key_header", _from_ctx)
 
 
 def _mock_response(json_data: dict, status_code: int = 200):

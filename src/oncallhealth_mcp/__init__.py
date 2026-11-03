@@ -19,11 +19,16 @@ Configuration:
     ONCALLHEALTH_API_URL: API base URL (default: https://api.oncallhealth.ai)
 """
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("oncallhealth-mcp")
+except PackageNotFoundError:  # running from a source checkout without install
+    __version__ = "0.0.0+unknown"
 
 # Convenience exports
+from oncallhealth_mcp.client import ClientConfig, OnCallHealthClient
 from oncallhealth_mcp.server import mcp_server
-from oncallhealth_mcp.client import OnCallHealthClient, ClientConfig
 
 __all__ = [
     "__version__",

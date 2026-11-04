@@ -3,7 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.4.0] - Unreleased
+## [0.4.1] - 2026-11-04
+
+### Fixed
+- MCP Registry name uses the GitHub organization's capitalization,
+  `io.github.Rootly-AI-Labs/oncallhealth-mcp`, which is the namespace the
+  registry grants to this repository. No code changes.
+
+## [0.4.0] - 2026-11-04
 
 Alignment with MCP revision 2026-07-28 and FastMCP 4.
 

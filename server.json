@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.rootly-ai-labs/oncallhealth-mcp",
+  "name": "io.github.Rootly-AI-Labs/oncallhealth-mcp",
   "title": "On-Call Health",
   "description": "On-call burnout analysis: team risk summaries, at-risk responders, daily health trends.",
   "repository": {
@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://oncallhealth.ai",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "oncallhealth-mcp",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

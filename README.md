@@ -5,7 +5,7 @@
 
 MCP server for [On-Call Health](https://oncallhealth.ai) burnout analysis. Connects AI assistants to your on-call data for workload insights.
 
-<!-- mcp-name: io.github.rootly-ai-labs/oncallhealth-mcp -->
+<!-- mcp-name: io.github.Rootly-AI-Labs/oncallhealth-mcp -->
 
 ## Prerequisites
 
